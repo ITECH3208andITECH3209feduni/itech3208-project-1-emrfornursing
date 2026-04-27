@@ -1,0 +1,26 @@
+# Build output
+**/bin/
+**/obj/
+
+# Visual Studio local files
+**/.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Backup files from our scripting sessions
+*.bak
+
+# Keys / secrets (never commit these)
+**/keys/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Compiled output zip
+*.zip
+
+# Duplicate/copy files
+*Copy*.cs

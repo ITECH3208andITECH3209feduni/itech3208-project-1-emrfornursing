@@ -1,0 +1,19 @@
+using System;
+
+namespace EMRSimulation.Domain.Dtos
+{
+    public class FluidBalanceChartEntryDto
+    {
+        public int    Id                  { get; set; }
+        public int    FluidBalanceChartId { get; set; }
+        /// <summary>Calendar date the fluid was administered.</summary>
+        public DateTime EntryDate         { get; set; }
+        /// <summary>4-char 24h slot e.g. "0800".</summary>
+        public string EntryTime           { get; set; } = string.Empty;
+        /// <summary>"Intake" or "Output"</summary>
+        public string EntryType           { get; set; } = string.Empty;
+        public string Category            { get; set; } = string.Empty;
+        public int    AmountMl            { get; set; }
+        public DateTime CreatedDateTime   { get; set; }
+    }
+}
