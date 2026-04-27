@@ -1,0 +1,84 @@
+@{ ViewData["Title"] = "Fluid Record List"; }
+@using EMRSimulation.Domain.Dtos;
+@model IEnumerable<FluidBalanceChartDto>
+
+<div class="form-group row mb-1" style="background-color: black;color: white;">
+    <div class="col-sm-7">
+        <label class="col-sm-5 col-form-label">FLUID RECORD LIST</label>
+    </div>
+</div>
+<div class="text-left">
+    <table id="patientsFluidRecordTable" class="display" style="width:100%">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Entry Date(s)</th>
+                <th>Chart Completed</th>
+                <th>Total Intake (ml)</th>
+                <th>Total Output (ml)</th>
+                <th>Balance (ml)</th>
+                <th>Total Balance (ml)</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Model)
+            {
+                <tr>
+                    <td>@item.Id</td>
+                    <td>@(item.EarliestEntryDate.Date == item.LatestEntryDate.Date
+                        ? item.EarliestEntryDate.ToShortDateString()
+                        : item.EarliestEntryDate.ToShortDateString() + " - " + item.LatestEntryDate.ToShortDateString())</td>
+                    <td>@item.ChartDate.ToShortDateString()</td>
+                    <td>@item.TotalIntake</td>
+                    <td>@item.TotalOutput</td>
+                    <td>@item.Balance</td>
+                    <td>@item.TotalBalance</td>
+                    <td>
+                        <a href="javascript:void(0);" class="btn btn-danger btn-sm deleteFluidRecord"
+                           data-custom="@item.Id" style="padding:5px 10px;">Delete</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+<div><label id="lblMessage" style="color:green"></label></div>
+<script>
+    var LabId = null, PatientId = null;
+    $(function () {
+        $("#patientsFluidRecordTable").DataTable({
+            paging: true, info: false, searching: true, ordering: true,
+            autoWidth: true, lengthChange: false,
+            columns: [
+                { visible: false }, null, null, null, null, null, null,
+                { orderable: false }
+            ],
+            language: { emptyTable: "No fluid records found" }
+        });
+        LabId = $("#txtLabId").val();
+        PatientId = $("#txtPatientId").val();
+        $("#patientsFluidRecordTable").on("click", ".deleteFluidRecord", function () {
+            if (!confirm("Delete this record?")) return;
+            var recordId = $(this).data("custom");
+            $.ajax({
+                type: "GET",
+                url: "/supervisor/deletefluidbalancechart",
+                data: { Id: recordId },
+                success: function (r) {
+                    if (r > 0) {
+                        $.ajax({
+                            url: "/supervisor/getpatientfluidbalancechartlist",
+                            data: { labId: LabId, patientId: PatientId },
+                            success: function (html) { $("#divlstFluidRecord").html(html); }
+                        });
+                        $("#lblMessage").text("Deleted successfully").css("color","green");
+                    } else {
+                        $("#lblMessage").text("Delete failed").css("color","red");
+                    }
+                },
+                error: function (x) { console.error(x.responseText); }
+            });
+        });
+    });
+</script>
