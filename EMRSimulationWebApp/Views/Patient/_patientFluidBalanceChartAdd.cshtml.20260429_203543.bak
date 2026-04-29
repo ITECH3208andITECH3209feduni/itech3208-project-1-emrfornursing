@@ -322,7 +322,7 @@
             Balance:            ti - to,
             TotalBalance:       (ti - to) + prev,
             ClinicalNotes:      document.getElementById("clinicalNotes").value || null,
-            UserInitials:       null,
+            UserInitials:       document.getElementById("userInitials") ? document.getElementById("userInitials").value.trim() || null : null,
             SignatureData:      sigData,
             Entries:            allEntries
         };

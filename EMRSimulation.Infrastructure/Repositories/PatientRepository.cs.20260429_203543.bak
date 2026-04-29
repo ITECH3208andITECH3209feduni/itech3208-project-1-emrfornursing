@@ -297,6 +297,7 @@ namespace EMRSimulation.Infrastructure.Repositories
             command.Parameters.Add(new SqlParameter("@Balance", dto.Balance));
             command.Parameters.Add(new SqlParameter("@TotalBalance", dto.TotalBalance));
             command.Parameters.Add(new SqlParameter("@ClinicalNotes", (object?)dto.ClinicalNotes ?? DBNull.Value));
+            command.Parameters.Add(new SqlParameter("@UserInitials", (object?)dto.UserInitials ?? DBNull.Value));
             command.Parameters.Add(new SqlParameter("@SignatureData", (object?)dto.SignatureData ?? DBNull.Value));
 
             var scalar = await command.ExecuteScalarAsync();
@@ -379,6 +380,7 @@ namespace EMRSimulation.Infrastructure.Repositories
                 Balance = r.GetInt32(r.GetOrdinal("Balance")),
                 TotalBalance = r.GetInt32(r.GetOrdinal("TotalBalance")),
                 ClinicalNotes = r.IsDBNull(r.GetOrdinal("ClinicalNotes")) ? null : r.GetString(r.GetOrdinal("ClinicalNotes")),
+                UserInitials = r.IsDBNull(r.GetOrdinal("UserInitials")) ? null : r.GetString(r.GetOrdinal("UserInitials")),
                 SignatureData = r.IsDBNull(r.GetOrdinal("SignatureData")) ? null : r.GetString(r.GetOrdinal("SignatureData")),
                 CreatedDateTime = r.GetDateTime(r.GetOrdinal("CreatedDateTime")),
                 UpdatedDateTime   = r.IsDBNull(r.GetOrdinal("UpdatedDateTime")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedDateTime")),
