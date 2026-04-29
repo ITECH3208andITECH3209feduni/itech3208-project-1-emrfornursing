@@ -30,6 +30,7 @@ namespace EMRSimulation.Domain.Dtos
         public int TotalBalance { get; set; }
 
         public string ClinicalNotes { get; set; }
+        public string UserInitials  { get; set; }
 
         /// <summary>Base-64 PNG string captured from the signature canvas.</summary>
         public string SignatureData { get; set; }
