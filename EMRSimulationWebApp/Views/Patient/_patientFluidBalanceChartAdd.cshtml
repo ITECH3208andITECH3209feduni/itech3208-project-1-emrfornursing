@@ -22,19 +22,15 @@
         </div>
     </div>
 
-    
-    <div class="card shadow-sm mb-3">
-        <div class="card-header fw-bold">Chart Details</div>
+
+    @* Chart Date/Time are auto-set to current date/time and kept hidden so save logic still works *@
+    <input type="hidden" id="chartDate" />
+    <input type="hidden" id="chartTime" />
+
+    <div class="card shadow-sm mb-3 no-print">
+        <div class="card-header fw-bold">Fluid Balance Entry</div>
         <div class="card-body">
-            <div class="row g-3">
-                <div class="col-md-3">
-                    <label class="form-label">Chart Date <span class="text-muted small">(completion)</span></label>
-                    <input type="date" id="chartDate" class="form-control" />
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Chart Time <span class="text-muted small">(completion)</span></label>
-                    <input type="time" id="chartTime" class="form-control" />
-                </div>
+            <div class="row g-3 mb-3">
                 <div class="col-md-3">
                     <label class="form-label">Prev Day Balance - Auto (mL)</label>
                     <input id="prevAuto" type="number" class="form-control bg-light" value="@Model.PreviousDayBalanceAuto" readonly
@@ -45,12 +41,6 @@
                     <input id="prevManual" type="number" class="form-control" min="0" placeholder="Manual Override" />
                 </div>
             </div>
-        </div>
-    </div>
-
-    <div class="card shadow-sm mb-3 no-print">
-        <div class="card-header fw-bold">Fluid Balance Entry</div>
-        <div class="card-body">
             <div class="row g-3 align-items-end">
                 <div class="col-md-2">
                     <label class="form-label">Date</label>
@@ -183,37 +173,7 @@
     document.getElementById("prevAuto").addEventListener("input", calc);
     document.getElementById("prevManual").addEventListener("input", calc);
 
-    // When chart date changes, fetch the latest TotalBalance for the new date
-    // (most recent chart BEFORE the selected date) and update prevAuto
-    document.getElementById("chartDate").addEventListener("change", function() {
-        var labId     = document.getElementById("txtLabId")     ? document.getElementById("txtLabId").value     : "";
-        var patientId = document.getElementById("txtPatientId") ? document.getElementById("txtPatientId").value : "";
-        if (!labId || !patientId) return;
-        // Sync entryDate to chartDate if not manually set
-        var entryEl = document.getElementById("entryDate");
-        if (entryEl && !entryEl.dataset.manuallyChanged) {
-            entryEl.value = this.value;
-        }
-        // Use entryDate for prevAuto lookup
-        var lookupDate = document.getElementById("entryDate").value || this.value;
-        $.ajax({
-            url: "/patient/getlatestfluidbalancetotalbalance",
-            method: "GET",
-            data: { labId: labId, patientId: patientId, beforeDate: lookupDate },
-            success: function(val) {
-                document.getElementById("prevAuto").value = parseInt(val, 10) || 0;
-                calc();
-            },
-            error: function() {
-                document.getElementById("prevAuto").value = 0;
-                calc();
-            }
-        });
-        // Keep entryDate in sync with chartDate by default
-        if (!document.getElementById("entryDate").dataset.manuallyChanged) {
-            document.getElementById("entryDate").value = this.value;
-        }
-    });
+    // (Chart Date is now a hidden field auto-set to today; prevAuto is driven by entryDate below.)
 
     // When entryDate changes, fetch prevAuto based on the entry date
     document.getElementById("entryDate").addEventListener("change", function() {
@@ -375,7 +335,6 @@
         document.getElementById("chartTime").value = hh+":"+mi;
         document.getElementById("entryDate").value = today;
         // Prevent future dates
-        document.getElementById("chartDate").max = today;
         document.getElementById("entryDate").max = today;
     })();
 
@@ -441,11 +400,4 @@
             error: function() { calc(); }
         });
     })();
-
-    // Also sync entryDate to chartDate on chartDate change
-    document.getElementById("chartDate").addEventListener("change", function() {
-        if (!document.getElementById("entryDate").dataset.manuallyChanged) {
-            document.getElementById("entryDate").value = this.value;
-        }
-    });
 </script>
