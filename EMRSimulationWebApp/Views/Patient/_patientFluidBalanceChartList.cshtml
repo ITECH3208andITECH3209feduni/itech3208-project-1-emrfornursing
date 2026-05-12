@@ -1,50 +1,52 @@
-@using EMRSimulation.Domain.Dtos;
-@using EMRSimulationWebApp.Models;
-@model PatientFluidBalanceChartViewModel
-
-<div class="form-group row mb-1" style="background-color: black;color: white;">
-    <div class="col-sm-7">
-        <label class="col-sm-5 col-form-label">FLUID RECORD LIST</label>
-    </div>
-</div>
-<div class="text-left">
-    <table id="patientsFluidBalanceAdminTable" class="display">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Entry Date(s)</th>
-                <th>Chart Completed</th>
-                <th>Total Intake (ml)</th>
-                <th>Total Output (ml)</th>
-                <th>Balance (ml)</th>
-                <th>Total Balance (ml)</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var patient in Model.FluidBalanceChartDtoList)
-            {
-                <tr>
-                    <td>@patient.Id</td>
-                    <td>@(patient.EarliestEntryDate.Date == patient.LatestEntryDate.Date
-                        ? patient.EarliestEntryDate.ToShortDateString()
-                        : patient.EarliestEntryDate.ToShortDateString() + " - " + patient.LatestEntryDate.ToShortDateString())</td>
-                    <td>@patient.ChartDate.ToShortDateString()</td>
-                    <td>@patient.TotalIntake</td>
-                    <td>@patient.TotalOutput</td>
-                    <td>@patient.Balance</td>
-                    <td>@patient.TotalBalance</td>
-                </tr>
-            }
-        </tbody>
-    </table>
-</div>
-<div><label id="lblMessage" style="color:green"></label></div>
-<script>
-    $(function () {
-        $("#patientsFluidBalanceAdminTable").DataTable({
-            paging: true, info: false, searching: false, ordering: true,
-            autoWidth: false, lengthChange: false,
-            columnDefs: [{ targets: [0], visible: false }]
-        });
-    });
-</script>
+@using EMRSimulation.Domain.Dtos;
+@using EMRSimulationWebApp.Models;
+@model PatientFluidBalanceChartViewModel
+
+<div class="form-group row mb-1" style="background-color: black;color: white;">
+    <div class="col-sm-7">
+        <label class="col-sm-5 col-form-label">FLUID RECORD LIST</label>
+    </div>
+</div>
+<div class="text-left">
+    <table id="patientsFluidBalanceAdminTable" class="display">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Entry Date(s)</th>
+                <th>Total Intake (ml)</th>
+                <th>Total Output (ml)</th>
+                <th>Balance (ml)</th>
+                <th>Total Balance (ml)</th>
+                <th>Clinical Notes</th>
+                <th>Completed By</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var patient in Model.FluidBalanceChartDtoList)
+            {
+                <tr>
+                    <td>@patient.Id</td>
+                    <td>@(patient.EarliestEntryDate.Date == patient.LatestEntryDate.Date
+                        ? patient.EarliestEntryDate.ToShortDateString()
+                        : patient.EarliestEntryDate.ToShortDateString() + " - " + patient.LatestEntryDate.ToShortDateString())</td>
+                    <td>@patient.TotalIntake</td>
+                    <td>@patient.TotalOutput</td>
+                    <td>@patient.Balance</td>
+                    <td>@patient.TotalBalance</td>
+                    <td><div class="text-truncate" style="max-width: 260px;" title="@patient.ClinicalNotes">@patient.ClinicalNotes</div></td>
+                    <td>@patient.CompletedBy</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+<div><label id="lblMessage" style="color:green"></label></div>
+<script>
+    $(function () {
+        $("#patientsFluidBalanceAdminTable").DataTable({
+            paging: true, info: false, searching: false, ordering: true,
+            autoWidth: false, lengthChange: false,
+            columnDefs: [{ targets: [0], visible: false }]
+        });
+    });
+</script>
