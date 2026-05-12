@@ -379,6 +379,7 @@ namespace EMRSimulation.Infrastructure.Repositories
                 Balance = r.GetInt32(r.GetOrdinal("Balance")),
                 TotalBalance = r.GetInt32(r.GetOrdinal("TotalBalance")),
                 ClinicalNotes = r.IsDBNull(r.GetOrdinal("ClinicalNotes")) ? null : r.GetString(r.GetOrdinal("ClinicalNotes")),
+                CompletedBy   = HasColumn(r, "CompletedBy") && !r.IsDBNull(r.GetOrdinal("CompletedBy")) ? r.GetString(r.GetOrdinal("CompletedBy")) : null,
                 SignatureData = r.IsDBNull(r.GetOrdinal("SignatureData")) ? null : r.GetString(r.GetOrdinal("SignatureData")),
                 CreatedDateTime = r.GetDateTime(r.GetOrdinal("CreatedDateTime")),
                 UpdatedDateTime   = r.IsDBNull(r.GetOrdinal("UpdatedDateTime")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedDateTime")),

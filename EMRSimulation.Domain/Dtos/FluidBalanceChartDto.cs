@@ -31,6 +31,9 @@ namespace EMRSimulation.Domain.Dtos
 
         public string ClinicalNotes { get; set; }
 
+        /// <summary>Aggregated distinct initials from chart entries (derived in SP).</summary>
+        public string CompletedBy { get; set; }
+
         /// <summary>Base-64 PNG string captured from the signature canvas.</summary>
         public string SignatureData { get; set; }
 
