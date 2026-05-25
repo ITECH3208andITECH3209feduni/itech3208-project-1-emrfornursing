@@ -57,6 +57,15 @@
                         <a href="javascript:void(0);" class="nav-link text-light load-patient-list" data-url="@Url.Action("GetPatientList", "Patient")">Patient List</a>
                     </li>
 
+                    <li id="togglePolicyMenu">
+                        <button id="togglePolicy" class="menu-btn" type="button">
+                            POLICIES <span class="arrow">&#9660;</span>
+                        </button>
+                        <ul id="policyMenu" class="submenu">
+                            <li><a href="javascript:void(0);" class="load-hospital-policies" data-url="@Url.Action("GetPoliciesView", "Patient")">View Policies</a></li>
+                        </ul>
+                    </li>
+
                     <!-- RISKMAN (global-only; visibility controlled by JS) -->
                     <li id="toggleRiskmanMenu">
                         <button id="toggleRiskman" class="menu-btn">
@@ -96,8 +105,10 @@
                                     <li><a href="javascript:void(0);" class="load-patient-fluidbalance" data-url="@Url.Action("GetPatientFluidBalanceChartList", "Patient")">View Charts</a></li>
                                     <li><a href="javascript:void(0);" class="load-patient-fluidbalance-add" data-url="@Url.Action("GetPatientFluidBalanceChartAdd", "Patient")">Add FluidBalance Chart</a></li>
                                 </ul>
-                            </li>
-
+                            </li>
+
+
+
                             <!-- FRAT (added)
                             <li>
                                 <a href="javascript:void(0);" class="load-patient-frat"
@@ -906,6 +917,23 @@
             error: function (xhr, status, error) {
                 console.error("Error loading Food Intake add:", error);
             }
+        });
+    });
+
+    // ===== Policies tab =====
+    $("#togglePolicy").on("click", function () {
+        $("#policyMenu").toggleClass("show");
+    });
+    $(document).on('click', '.load-hospital-policies', function (e) {
+        e.preventDefault();
+        var pageUrl = $(this).data('url');
+        var LabId = $('#txtLabId').val();
+        $.ajax({
+            url: pageUrl,
+            method: "GET",
+            data: { labId: LabId },
+            success: function (response) { $('#content-area').html(""); $('#content-area').html(response); },
+            error: function (xhr, status, error) { console.error("Error loading policies page:", error); }
         });
     });
 </script>
