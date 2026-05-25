@@ -13,11 +13,13 @@ namespace EMRSimulation.WebApp.Controllers
     {
         private readonly IPatientService _patientService;
         private readonly IConfiguration _configuration;
+        private readonly EMRSimulation.Infrastructure.Repositories.IPolicyRepository _policyRepository;
 
-        public PatientController(IPatientService patientService, IConfiguration configuration)
+        public PatientController(IPatientService patientService, IConfiguration configuration, EMRSimulation.Infrastructure.Repositories.IPolicyRepository policyRepository)
         {
             _patientService = patientService;
             _configuration = configuration;
+            _policyRepository = policyRepository;
         }
 
         public async Task<IActionResult> GetPatientList(int labId)
@@ -782,6 +784,46 @@ namespace EMRSimulation.WebApp.Controllers
                 }
             }
             return Json(new { success = true });
+        }
+
+
+        // ===== Policies tab =====
+        [HttpGet]
+        public async Task<IActionResult> GetPoliciesView(int labId, string? searchTerm)
+        {
+            var policies = await _policyRepository.GetPoliciesByLabAsync(labId, searchTerm ?? "");
+            ViewBag.SearchTerm = searchTerm;
+            return PartialView("GetPoliciesView", policies);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> DownloadPolicyFile(int id)
+        {
+            var policy = await _policyRepository.GetPolicyByIdAsync(id);
+            if (policy == null || policy.FileData == null) return NotFound();
+            return File(policy.FileData, "application/pdf");
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> UploadPolicy(int labId, string displayName, IFormFile pdfFile)
+        {
+            if (pdfFile == null || pdfFile.Length == 0) return BadRequest("No file uploaded.");
+            string sizeStr = pdfFile.Length >= 1048576
+                ? $"{(pdfFile.Length / 1048576.0):F1} MB"
+                : $"{(pdfFile.Length / 1024.0):F0} KB";
+            using var memoryStream = new System.IO.MemoryStream();
+            await pdfFile.CopyToAsync(memoryStream);
+            var newPolicy = new EMRSimulation.Domain.Dtos.PolicyDto
+            {
+                LabId = labId,
+                FileName = pdfFile.FileName,
+                DisplayName = string.IsNullOrWhiteSpace(displayName) ? System.IO.Path.GetFileNameWithoutExtension(pdfFile.FileName) : displayName,
+                FileSizeString = sizeStr,
+                FileData = memoryStream.ToArray(),
+                UploadedDate = DateTime.UtcNow
+            };
+            await _policyRepository.SavePolicyAsync(newPolicy);
+            return RedirectToAction("GetPoliciesView", new { labId = labId });
         }
 
     }
