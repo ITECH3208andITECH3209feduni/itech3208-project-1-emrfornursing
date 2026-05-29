@@ -2390,6 +2390,105 @@ namespace EMRSimulation.Infrastructure.Repositories
             return patients;
         }
 
+
+        public async Task<IEnumerable<ClearDataDto>> ClearPatientDataSelectiveAsync(int labId, int patientId, bool fallRisk, bool braden, bool neuro, bool foodIntake, bool ivFluid, bool prn, bool regular, bool patientAdds, bool progressNotes)
+        {
+            var patients = new List<ClearDataDto>();
+
+            using (var connection = await _dbConnectionFactory.CreateAsync())
+            {
+                using (var command = (SqlCommand)connection.CreateCommand())
+                {
+                    command.CommandText = "ClearPatientDataSelective";
+                    command.CommandType = CommandType.StoredProcedure;
+
+                    command.Parameters.Add(new SqlParameter("@LabId", labId));
+                    command.Parameters.Add(new SqlParameter("@PatientId", patientId));
+                    command.Parameters.Add(new SqlParameter("@FallRisk", fallRisk));
+                    command.Parameters.Add(new SqlParameter("@Braden", braden));
+                    command.Parameters.Add(new SqlParameter("@Neuro", neuro));
+                    command.Parameters.Add(new SqlParameter("@FoodIntake", foodIntake));
+                    command.Parameters.Add(new SqlParameter("@IvFluid", ivFluid));
+                    command.Parameters.Add(new SqlParameter("@Prn", prn));
+                    command.Parameters.Add(new SqlParameter("@Regular", regular));
+                    command.Parameters.Add(new SqlParameter("@PatientAdds", patientAdds));
+                    command.Parameters.Add(new SqlParameter("@ProgressNotes", progressNotes));
+
+                    using (var reader = await command.ExecuteReaderAsync())
+                    {
+                        while (await reader.ReadAsync())
+                        {
+                            var patient = new ClearDataDto
+                            {
+                                ModuleName = reader.GetString(reader.GetOrdinal("TableName")),
+                                RowsDeleted = reader.GetInt32(reader.GetOrdinal("RowsDeleted"))
+                            };
+
+                            patients.Add(patient);
+                        }
+                    }
+                }
+            }
+
+            return patients;
+        }
+
+
+        public async Task<PatientDto?> GetPatientForEditAsync(int patientId)
+        {
+            using (var connection = await _dbConnectionFactory.CreateAsync())
+            using (var command = (SqlCommand)connection.CreateCommand())
+            {
+                command.CommandText = "GetPatientForEdit";
+                command.CommandType = CommandType.StoredProcedure;
+                command.Parameters.Add(new SqlParameter("@PatientId", patientId));
+
+                using (var reader = await command.ExecuteReaderAsync())
+                {
+                    if (await reader.ReadAsync())
+                    {
+                        return new PatientDto
+                        {
+                            Id = reader.GetInt32(reader.GetOrdinal("Id")),
+                            FirstName = reader.IsDBNull(reader.GetOrdinal("FirstName")) ? null : reader.GetString(reader.GetOrdinal("FirstName")),
+                            LastName = reader.IsDBNull(reader.GetOrdinal("LastName")) ? null : reader.GetString(reader.GetOrdinal("LastName")),
+                            DateOfBirth = reader.IsDBNull(reader.GetOrdinal("DateOfBirth")) ? (DateTime?)null : reader.GetDateTime(reader.GetOrdinal("DateOfBirth")),
+                            Gender = reader.IsDBNull(reader.GetOrdinal("Gender")) ? null : reader.GetString(reader.GetOrdinal("Gender")),
+                            Address = reader.IsDBNull(reader.GetOrdinal("Address")) ? null : reader.GetString(reader.GetOrdinal("Address")),
+                            Allergy = reader.IsDBNull(reader.GetOrdinal("Allergy")) ? null : reader.GetString(reader.GetOrdinal("Allergy")),
+                            Intolerance = reader.IsDBNull(reader.GetOrdinal("Intolerance")) ? null : reader.GetString(reader.GetOrdinal("Intolerance")),
+                            Weight = reader.IsDBNull(reader.GetOrdinal("Weight")) ? null : reader.GetString(reader.GetOrdinal("Weight")),
+                            Height = reader.IsDBNull(reader.GetOrdinal("Height")) ? null : reader.GetString(reader.GetOrdinal("Height")),
+                            Age = reader.IsDBNull(reader.GetOrdinal("Age")) ? null : reader.GetString(reader.GetOrdinal("Age"))
+                        };
+                    }
+                }
+            }
+            return null;
+        }
+
+        public async Task UpdatePatientFromListAsync(int patientId, string firstName, string lastName, string dob, string gender, string address, string allergies, string intolerance, string weight, string height, string age)
+        {
+            using (var connection = await _dbConnectionFactory.CreateAsync())
+            using (var command = (SqlCommand)connection.CreateCommand())
+            {
+                command.CommandText = "UpdatePatientFromList";
+                command.CommandType = CommandType.StoredProcedure;
+                command.Parameters.Add(new SqlParameter("@PatientId", patientId));
+                command.Parameters.Add(new SqlParameter("@FirstName", firstName ?? ""));
+                command.Parameters.Add(new SqlParameter("@LastName", lastName ?? ""));
+                command.Parameters.Add(new SqlParameter("@DOB", string.IsNullOrWhiteSpace(dob) ? (object)DBNull.Value : Convert.ToDateTime(dob)));
+                command.Parameters.Add(new SqlParameter("@Gender", gender ?? ""));
+                command.Parameters.Add(new SqlParameter("@Address", address ?? ""));
+                command.Parameters.Add(new SqlParameter("@Allergies", allergies ?? ""));
+                command.Parameters.Add(new SqlParameter("@Intolerance", intolerance ?? ""));
+                command.Parameters.Add(new SqlParameter("@Weight", weight ?? ""));
+                command.Parameters.Add(new SqlParameter("@Height", height ?? ""));
+                command.Parameters.Add(new SqlParameter("@Age", age ?? ""));
+                await command.ExecuteNonQueryAsync();
+            }
+        }
+
         public async Task<IEnumerable<ClearDataDto>> ClearLabDataAsync(int labId)
         {
             var patients = new List<ClearDataDto>();
