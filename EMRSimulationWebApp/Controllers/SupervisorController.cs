@@ -1,4 +1,4 @@
-﻿using EMRSimulation.Application.Services;
+using EMRSimulation.Application.Services;
 using EMRSimulation.Domain.Dtos;
 using EMRSimulationWebApp.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -162,6 +162,19 @@ namespace EMRSimulationWebApp.Controllers
 
             lstPatients = await _patientService.GetAllPatientsAsync(labId);
             return PartialView("~/views/patient/_supervisorPatientList.cshtml", lstPatients);
+        }
+
+        public async Task<IActionResult> ClearPatientDataSelective(int labId, int patientId, bool fallRisk, bool braden, bool neuro, bool foodIntake, bool ivFluid, bool prn, bool regular, bool patientAdds, bool progressNotes)
+        {
+            try
+            {
+                var clearedData = await _patientService.ClearPatientDataSelectiveAsync(labId, patientId, fallRisk, braden, neuro, foodIntake, ivFluid, prn, regular, patientAdds, progressNotes);
+                return Ok(clearedData);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, "An error occurred while clearing the selected patient data." + ex);
+            }
         }
 
         public async Task<IActionResult> ClearPatientData(int labId, int patientId)

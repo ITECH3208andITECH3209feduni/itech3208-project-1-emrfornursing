@@ -93,6 +93,9 @@ namespace EMRSimulation.Application.Services
         public Task<int> DeleteRiskmanIncidentAsync(int id) => _patientRepository.DeleteRiskmanIncidentAsync(id);
 
         public Task<IEnumerable<ClearDataDto>> ClearPatientDataAsync(int labId, int patientId) => _patientRepository.ClearPatientDataAsync(labId, patientId);
+        public Task<PatientDto?> GetPatientForEditAsync(int patientId) => _patientRepository.GetPatientForEditAsync(patientId);
+        public Task UpdatePatientFromListAsync(int patientId, string firstName, string lastName, string dob, string gender, string address, string allergies, string intolerance, string weight, string height, string age) => _patientRepository.UpdatePatientFromListAsync(patientId, firstName, lastName, dob, gender, address, allergies, intolerance, weight, height, age);
+        public Task<IEnumerable<ClearDataDto>> ClearPatientDataSelectiveAsync(int labId, int patientId, bool fallRisk, bool braden, bool neuro, bool foodIntake, bool ivFluid, bool prn, bool regular, bool patientAdds, bool progressNotes) => _patientRepository.ClearPatientDataSelectiveAsync(labId, patientId, fallRisk, braden, neuro, foodIntake, ivFluid, prn, regular, patientAdds, progressNotes);
         public Task<IEnumerable<ClearDataDto>> ClearLabDataAsync(int labId) => _patientRepository.ClearLabDataAsync(labId);
     }
 }
