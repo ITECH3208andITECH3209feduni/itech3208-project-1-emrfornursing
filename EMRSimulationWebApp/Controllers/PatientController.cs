@@ -3,7 +3,6 @@ using EMRSimulation.Domain.Dtos;
 using EMRSimulationWebApp.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Data.SqlClient;
 using System.Reflection.Emit;
 
 namespace EMRSimulation.WebApp.Controllers
@@ -12,13 +11,11 @@ namespace EMRSimulation.WebApp.Controllers
     public class PatientController : Controller
     {
         private readonly IPatientService _patientService;
-        private readonly IConfiguration _configuration;
         private readonly EMRSimulation.Infrastructure.Repositories.IPolicyRepository _policyRepository;
 
-        public PatientController(IPatientService patientService, IConfiguration configuration, EMRSimulation.Infrastructure.Repositories.IPolicyRepository policyRepository)
+        public PatientController(IPatientService patientService, EMRSimulation.Infrastructure.Repositories.IPolicyRepository policyRepository)
         {
             _patientService = patientService;
-            _configuration = configuration;
             _policyRepository = policyRepository;
         }
 
@@ -712,77 +709,30 @@ namespace EMRSimulation.WebApp.Controllers
 
         // ===== Edit Patient feature =====
         [HttpGet]
-        public IActionResult GetPatientForEdit(int patientId)
+        public async Task<IActionResult> GetPatientForEdit(int patientId)
         {
-            string connectionString = _configuration.GetConnectionString("EmrSimulationConnection") ?? "";
-            using (var conn = new SqlConnection(connectionString))
+            var p = await _patientService.GetPatientForEditAsync(patientId);
+            if (p == null) return NotFound();
+            return Json(new
             {
-                conn.Open();
-                string query = @"SELECT TOP 1 Id, FirstName, LastName, DateOfBirth, Gender, Address, Allergy, Intolerance, Weight, Height, Age FROM dbo.Patient WHERE Id = @PatientId";
-                using (var cmd = new SqlCommand(query, conn))
-                {
-                    cmd.Parameters.AddWithValue("@PatientId", patientId);
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        if (reader.Read())
-                        {
-                            return Json(new
-                            {
-                                patientId = reader["Id"],
-                                firstName = reader["FirstName"]?.ToString(),
-                                lastName = reader["LastName"]?.ToString(),
-                                dob = reader["DateOfBirth"] == DBNull.Value ? "" : Convert.ToDateTime(reader["DateOfBirth"]).ToString("yyyy-MM-dd"),
-                                gender = reader["Gender"]?.ToString(),
-                                address = reader["Address"]?.ToString(),
-                                allergies = reader["Allergy"]?.ToString(),
-                                intolerance = reader["Intolerance"]?.ToString(),
-                                weight = reader["Weight"]?.ToString(),
-                                height = reader["Height"]?.ToString(),
-                                age = reader["Age"]?.ToString()
-                            });
-                        }
-                    }
-                }
-            }
-            return NotFound();
+                patientId = p.Id,
+                firstName = p.FirstName,
+                lastName = p.LastName,
+                dob = p.DateOfBirth.HasValue ? p.DateOfBirth.Value.ToString("yyyy-MM-dd") : "",
+                gender = p.Gender,
+                address = p.Address,
+                allergies = p.Allergy,
+                intolerance = p.Intolerance,
+                weight = p.Weight,
+                height = p.Height,
+                age = p.Age
+            });
         }
 
         [HttpPost]
-        public IActionResult UpdatePatientFromList(int patientId, string firstName, string lastName, string dob, string gender, string address, string allergies, string intolerance, string weight, string height, string age)
+        public async Task<IActionResult> UpdatePatientFromList(int patientId, string firstName, string lastName, string dob, string gender, string address, string allergies, string intolerance, string weight, string height, string age)
         {
-            string connectionString = _configuration.GetConnectionString("EmrSimulationConnection") ?? "";
-            using (var conn = new SqlConnection(connectionString))
-            {
-                conn.Open();
-                string query = @"UPDATE dbo.Patient SET
-                        FirstName   = CASE WHEN @FirstName = '' THEN FirstName ELSE @FirstName END,
-                        LastName    = CASE WHEN @LastName = '' THEN LastName ELSE @LastName END,
-                        DateOfBirth = CASE WHEN @DOB IS NULL THEN DateOfBirth ELSE @DOB END,
-                        Gender      = CASE WHEN @Gender = '' THEN Gender ELSE @Gender END,
-                        Address     = CASE WHEN @Address = '' THEN Address ELSE @Address END,
-                        Allergy     = CASE WHEN @Allergies = '' THEN Allergy ELSE @Allergies END,
-                        Intolerance = CASE WHEN @Intolerance = '' THEN Intolerance ELSE @Intolerance END,
-                        Weight      = CASE WHEN @Weight = '' THEN Weight ELSE @Weight END,
-                        Height      = CASE WHEN @Height = '' THEN Height ELSE @Height END,
-                        Age         = CASE WHEN @Age = '' THEN Age ELSE @Age END
-                    WHERE Id = @PatientId";
-                using (var cmd = new SqlCommand(query, conn))
-                {
-                    cmd.Parameters.AddWithValue("@PatientId", patientId);
-                    cmd.Parameters.AddWithValue("@FirstName", firstName ?? "");
-                    cmd.Parameters.AddWithValue("@LastName", lastName ?? "");
-                    if (string.IsNullOrWhiteSpace(dob)) cmd.Parameters.AddWithValue("@DOB", DBNull.Value);
-                    else cmd.Parameters.AddWithValue("@DOB", Convert.ToDateTime(dob));
-                    cmd.Parameters.AddWithValue("@Gender", gender ?? "");
-                    cmd.Parameters.AddWithValue("@Address", address ?? "");
-                    cmd.Parameters.AddWithValue("@Allergies", allergies ?? "");
-                    cmd.Parameters.AddWithValue("@Intolerance", intolerance ?? "");
-                    cmd.Parameters.AddWithValue("@Weight", weight ?? "");
-                    cmd.Parameters.AddWithValue("@Height", height ?? "");
-                    cmd.Parameters.AddWithValue("@Age", age ?? "");
-                    cmd.ExecuteNonQuery();
-                }
-            }
+            await _patientService.UpdatePatientFromListAsync(patientId, firstName, lastName, dob, gender, address, allergies, intolerance, weight, height, age);
             return Json(new { success = true });
         }
 

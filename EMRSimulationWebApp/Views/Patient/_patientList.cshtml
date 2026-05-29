@@ -5,8 +5,7 @@
 @model IEnumerable<PatientDto>
 
 <style>
-    .edit-patient-btn { background:#1f6feb; color:#fff; border:none; padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; margin-left:8px; }
-    .edit-patient-btn:hover { background:#185abc; }
+    .edit-patient-btn { margin-left:8px; }
     .edit-patient-modal { position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:9999; display:none; justify-content:center; align-items:center; }
     .edit-patient-box { width:720px; max-width:92%; background:#fff; padding:22px 26px; border-radius:14px; box-shadow:0 16px 40px rgba(0,0,0,0.30); border:2px solid #ddd; }
     .edit-patient-box h2 { text-align:center; margin:0 0 8px; font-weight:800; font-size:26px; }
@@ -22,7 +21,7 @@
     .edit-actions { margin-top:22px; display:flex; justify-content:flex-end; gap:12px; }
     .edit-actions button { padding:9px 18px; border-radius:6px; border:none; font-weight:600; cursor:pointer; }
     #closeEditPatient { background:#e5e7eb; color:#111; }
-    #saveEditPatient { background:#1f6feb; color:#fff; }
+    #saveEditPatient { background:#FF8A30; color:#fff; }
 </style>
 
 <div class="text-left">
@@ -76,7 +75,7 @@
 
                     <td>
                         <a href="javascript:void(0);" class="btn btn-primary" style="background-color:#FF8A30;">Select</a>
-                        <button type="button" class="edit-patient-btn" data-patientid="@patient.Id">Edit</button>
+                        <a href="javascript:void(0);" class="btn btn-primary edit-patient-btn" style="background-color:#FF8A30;" data-patientid="@patient.Id">Edit</a>
                     </td>
                 </tr>
             }

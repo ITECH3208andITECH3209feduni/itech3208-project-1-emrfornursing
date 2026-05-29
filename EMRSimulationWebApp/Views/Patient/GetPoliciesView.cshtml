@@ -1,150 +1,300 @@
-@model IEnumerable<EMRSimulation.Domain.Dtos.PolicyDto>
-
-<div class="container-fluid py-2">
-    <div class="row align-items-center mb-3">
-        <div class="col-md-6">
-            <h2 class="fw-bold m-0" style="color: #1f2630;">Policies</h2>
-            <p class="text-muted m-0" style="font-size: 0.95rem;">View and read important clinical notes, guidelines &amp; policies.</p>
-        </div>
-        <div class="col-md-6 text-end d-flex justify-content-end gap-2">
-            <div class="input-group" style="max-width: 300px;">
-                <input type="text" id="policySearchField" class="form-control" placeholder="Search policies..." value="@ViewBag.SearchTerm" />
-            </div>
-            @if (User.HasClaim(c => c.Value == "supervisor"))
-            {
-                <button type="button" class="btn btn-light border shadow-sm fw-semibold" data-bs-toggle="modal" data-bs-target="#uploadPolicyModal">Upload Policies</button>
-            }
-        </div>
-    </div>
-    <div class="row">
-        <div class="col-md-5">
-            <div class="card shadow-sm mb-3">
-                <div class="card-header bg-white py-3 fw-bold border-bottom" style="font-size: 1.1rem; color: #1f2630;">Policy Documents</div>
-                <div class="list-group list-group-flush overflow-auto" id="wireframePolicyList" style="max-height: 520px; min-height: 420px;">
-                    @if (Model == null || !Model.Any())
-                    {
-                        <div class="text-center py-5 text-muted"><p class="m-0">No policy documents found.</p></div>
-                    }
-                    else
-                    {
-                        @foreach (var policy in Model.Select((data, index) => new { data, index }))
-                        {
-                            <button type="button"
-                                    class="list-group-item list-group-item-action p-3 wireframe-policy-item d-flex align-items-center gap-3 @(policy.index == 0 ? "active-policy-selection" : "")"
-                                    data-file-url="@Url.Action("DownloadPolicyFile", "Patient", new { id = policy.data.Id })"
-                                    data-title="@policy.data.DisplayName">
-                                <div class="bg-light border text-center rounded d-flex align-items-center justify-content-center flex-shrink-0" style="width: 60px; height: 54px; border: 1px solid #ddd !important;">
-                                    <span class="text-danger fw-bold" style="font-size: 0.75rem;">PDF</span>
-                                </div>
-                                <div class="text-start flex-grow-1 min-w-0">
-                                    <h6 class="mb-1 text-truncate fw-semibold" style="font-size: 0.95rem;">@policy.data.DisplayName</h6>
-                                    <small class="text-muted text-uppercase">@policy.data.FileSizeString</small>
-                                </div>
-                            </button>
-                        }
-                    }
-                </div>
-            </div>
-        </div>
-        <div class="col-md-7">
-            <div class="card shadow-sm border" style="background-color: #f8f9fa;">
-                <div class="card-header bg-white py-3 fw-semibold border-bottom" id="currentViewingFilenameHeader" style="font-size: 1.05rem; color: #1f2630;">Loading Document...</div>
-                <div class="card-body p-0 position-relative" style="height: 520px;">
-                    <iframe id="embeddedPdfFrame" class="w-100 h-100 border-0" style="background: #fff;" src=""></iframe>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="uploadPolicyModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <form asp-action="UploadPolicy" asp-controller="Patient" method="post" enctype="multipart/form-data" id="frmUploadPolicyForm" class="modal-content">
-            <div class="modal-header bg-dark text-white">
-                <h5 class="modal-title">Upload New Policy Document</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" name="labId" id="uploadFormLabId" />
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Policy Display Title</label>
-                    <input type="text" name="displayName" class="form-control" placeholder="e.g., Infection Control Policy" required />
-                </div>
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Select File (.pdf)</label>
-                    <input type="file" name="pdfFile" class="form-control" accept="application/pdf" required />
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-success">Upload</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<style>
-    .wireframe-policy-item { border-left: 4px solid transparent !important; background-color: #ffffff; }
-    .wireframe-policy-item:hover { background-color: #f1f3f5 !important; }
-    .active-policy-selection { background-color: #e9ecef !important; border-left-color: #ff8c32 !important; color: #000 !important; font-weight: bold; }
-</style>
-
-<script>
-    $(document).ready(function () {
-        var activeLabId = $('#txtLabId').val();
-        $('#uploadFormLabId').val(activeLabId);
-
-        function updatePdfViewer() {
-            var activeItem = $('.wireframe-policy-item.active-policy-selection');
-            if (activeItem.length > 0) {
-                $('#currentViewingFilenameHeader').text(activeItem.data('title'));
-                $('#embeddedPdfFrame').attr('src', activeItem.data('file-url')).show();
-            } else {
-                $('#currentViewingFilenameHeader').text("No Document Selected");
-                $('#embeddedPdfFrame').hide();
-            }
-        }
-        updatePdfViewer();
-
-        $('.wireframe-policy-item').on('click', function () {
-            $('.wireframe-policy-item').removeClass('active-policy-selection');
-            $(this).addClass('active-policy-selection');
-            updatePdfViewer();
-        });
-
-        var typingTimer;
-        $('#policySearchField').on('input', function () {
-            clearTimeout(typingTimer);
-            var queryValue = $(this).val();
-            typingTimer = setTimeout(function () {
-                $.ajax({
-                    url: '@Url.Action("GetPoliciesView", "Patient")',
-                    method: 'GET',
-                    data: { labId: activeLabId, searchTerm: queryValue },
-                    success: function (htmlPayload) {
-                        $('#content-area').html(htmlPayload);
-                        $('#policySearchField').focus().val('').val(queryValue);
-                    }
-                });
-            }, 300);
-        });
-
-        $('#frmUploadPolicyForm').on('submit', function (e) {
-            e.preventDefault();
-            var formBytes = new FormData(this);
-            $.ajax({
-                url: $(this).attr('action'),
-                type: 'POST',
-                data: formBytes,
-                contentType: false,
-                processData: false,
-                success: function (updatedHtml) {
-                    var modalInstance = bootstrap.Modal.getInstance(document.getElementById('uploadPolicyModal'));
-                    if (modalInstance) modalInstance.hide();
-                    $('.modal-backdrop').remove();
-                    $('#content-area').html(updatedHtml);
-                }
-            });
-        });
-    });
-</script>
+@model IEnumerable<EMRSimulation.Domain.Dtos.PolicyDto>
+
+
+
+<div class="container-fluid py-2">
+
+    <div class="row align-items-center mb-3">
+
+        <div class="col-md-6">
+
+            <h2 class="fw-bold m-0" style="color: #1f2630;">Policies</h2>
+
+            <p class="text-muted m-0" style="font-size: 0.95rem;">View and read important clinical notes, guidelines &amp; policies.</p>
+
+        </div>
+
+        <div class="col-md-6 text-end d-flex justify-content-end gap-2">
+
+            <div class="input-group" style="max-width: 300px;">
+
+                <input type="text" id="policySearchField" class="form-control" placeholder="Search policies..." value="@ViewBag.SearchTerm" />
+
+            </div>
+
+            @if (User.HasClaim(c => c.Value == "supervisor"))
+
+            {
+
+                <button type="button" class="btn btn-light border shadow-sm fw-semibold" data-bs-toggle="modal" data-bs-target="#uploadPolicyModal">Upload Policies</button>
+
+            }
+
+        </div>
+
+    </div>
+
+    <div class="row">
+
+        <div class="col-md-5">
+
+            <div class="card shadow-sm mb-3">
+
+                <div class="card-header bg-white py-3 fw-bold border-bottom" style="font-size: 1.1rem; color: #1f2630;">Policy Documents</div>
+
+                <div class="list-group list-group-flush overflow-auto" id="wireframePolicyList" style="max-height: 520px; min-height: 420px;">
+
+                    @if (Model == null || !Model.Any())
+
+                    {
+
+                        <div class="text-center py-5 text-muted"><p class="m-0">No policy documents found.</p></div>
+
+                    }
+
+                    else
+
+                    {
+
+                        @foreach (var policy in Model.Select((data, index) => new { data, index }))
+
+                        {
+
+                            <button type="button"
+
+                                    class="list-group-item list-group-item-action p-3 wireframe-policy-item d-flex align-items-center gap-3 @(policy.index == 0 ? "active-policy-selection" : "")"
+
+                                    data-file-url="@Url.Action("DownloadPolicyFile", "Patient", new { id = policy.data.Id })"
+
+                                    data-title="@policy.data.DisplayName">
+
+                                <div class="bg-light border text-center rounded d-flex align-items-center justify-content-center flex-shrink-0" style="width: 60px; height: 54px; border: 1px solid #ddd !important;">
+
+                                    <span class="text-danger fw-bold" style="font-size: 0.75rem;">PDF</span>
+
+                                </div>
+
+                                <div class="text-start flex-grow-1 min-w-0">
+
+                                    <h6 class="mb-1 text-truncate fw-semibold" style="font-size: 0.95rem;">@policy.data.DisplayName</h6>
+
+                                    <small class="text-muted text-uppercase">@policy.data.FileSizeString</small>
+
+                                </div>
+
+                            </button>
+
+                        }
+
+                    }
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-md-7">
+
+            <div class="card shadow-sm border" style="background-color: #f8f9fa;">
+
+                <div class="card-header bg-white py-3 fw-semibold border-bottom" id="currentViewingFilenameHeader" style="font-size: 1.05rem; color: #1f2630;">Loading Document...</div>
+
+                <div class="card-body p-0 position-relative" style="height: 520px;">
+
+                    <iframe id="embeddedPdfFrame" class="w-100 h-100 border-0" style="background: #fff;" src=""></iframe>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+<div class="modal fade" id="uploadPolicyModal" tabindex="-1" aria-hidden="true">
+
+    <div class="modal-dialog modal-dialog-centered">
+
+        <form asp-action="UploadPolicy" asp-controller="Patient" method="post" enctype="multipart/form-data" id="frmUploadPolicyForm" class="modal-content">
+
+            <div class="modal-header bg-dark text-white">
+
+                <h5 class="modal-title">Upload New Policy Document</h5>
+
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+
+            </div>
+
+            <div class="modal-body">
+
+                <input type="hidden" name="labId" id="uploadFormLabId" />
+
+                <div class="mb-3">
+
+                    <label class="form-label fw-bold">Policy Display Title</label>
+
+                    <input type="text" name="displayName" class="form-control" placeholder="e.g., Infection Control Policy" required />
+
+                </div>
+
+                <div class="mb-3">
+
+                    <label class="form-label fw-bold">Select File (.pdf)</label>
+
+                    <input type="file" name="pdfFile" class="form-control" accept="application/pdf" required />
+
+                </div>
+
+            </div>
+
+            <div class="modal-footer">
+
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+
+                <button type="submit" class="btn btn-primary" style="background-color:#FF8A30;">Upload</button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+
+
+
+<style>
+
+    .wireframe-policy-item { border-left: 4px solid transparent !important; background-color: #ffffff; }
+
+    .wireframe-policy-item:hover { background-color: #f1f3f5 !important; }
+
+    .active-policy-selection { background-color: #e9ecef !important; border-left-color: #FF8A30 !important; color: #000 !important; font-weight: bold; }
+
+</style>
+
+
+
+<script>
+
+    $(document).ready(function () {
+
+        var activeLabId = $('#txtLabId').val();
+
+        $('#uploadFormLabId').val(activeLabId);
+
+
+
+        function updatePdfViewer() {
+
+            var activeItem = $('.wireframe-policy-item.active-policy-selection');
+
+            if (activeItem.length > 0) {
+
+                $('#currentViewingFilenameHeader').text(activeItem.data('title'));
+
+                $('#embeddedPdfFrame').attr('src', activeItem.data('file-url')).show();
+
+            } else {
+
+                $('#currentViewingFilenameHeader').text("No Document Selected");
+
+                $('#embeddedPdfFrame').hide();
+
+            }
+
+        }
+
+        updatePdfViewer();
+
+
+
+        $('.wireframe-policy-item').on('click', function () {
+
+            $('.wireframe-policy-item').removeClass('active-policy-selection');
+
+            $(this).addClass('active-policy-selection');
+
+            updatePdfViewer();
+
+        });
+
+
+
+        var typingTimer;
+
+        $('#policySearchField').on('input', function () {
+
+            clearTimeout(typingTimer);
+
+            var queryValue = $(this).val();
+
+            typingTimer = setTimeout(function () {
+
+                $.ajax({
+
+                    url: '@Url.Action("GetPoliciesView", "Patient")',
+
+                    method: 'GET',
+
+                    data: { labId: activeLabId, searchTerm: queryValue },
+
+                    success: function (htmlPayload) {
+
+                        $('#content-area').html(htmlPayload);
+
+                        $('#policySearchField').focus().val('').val(queryValue);
+
+                    }
+
+                });
+
+            }, 300);
+
+        });
+
+
+
+        $('#frmUploadPolicyForm').on('submit', function (e) {
+
+            e.preventDefault();
+
+            var formBytes = new FormData(this);
+
+            $.ajax({
+
+                url: $(this).attr('action'),
+
+                type: 'POST',
+
+                data: formBytes,
+
+                contentType: false,
+
+                processData: false,
+
+                success: function (updatedHtml) {
+
+                    var modalInstance = bootstrap.Modal.getInstance(document.getElementById('uploadPolicyModal'));
+
+                    if (modalInstance) modalInstance.hide();
+
+                    $('.modal-backdrop').remove();
+
+                    $('#content-area').html(updatedHtml);
+
+                }
+
+            });
+
+        });
+
+    });
+
+</script>
+
