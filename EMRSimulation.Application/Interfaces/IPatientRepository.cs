@@ -49,6 +49,9 @@ namespace EMRSimulation.Application.Interfaces
         Task<MedicationPrnChartDto> GetMedicationPrnChartByIdAsync(int Id, int labId);
         Task<MedicationRegularChartDto> GetMedicationRegularChartByIdAsync(int Id, int labId);
         Task<IEnumerable<ClearDataDto>> ClearPatientDataAsync(int labId, int patientId);
+        Task<PatientDto?> GetPatientForEditAsync(int patientId);
+        Task UpdatePatientFromListAsync(int patientId, string firstName, string lastName, string dob, string gender, string address, string allergies, string intolerance, string weight, string height, string age);
+        Task<IEnumerable<ClearDataDto>> ClearPatientDataSelectiveAsync(int labId, int patientId, bool fallRisk, bool braden, bool neuro, bool foodIntake, bool ivFluid, bool prn, bool regular, bool patientAdds, bool progressNotes);
         Task<IEnumerable<ClearDataDto>> ClearLabDataAsync(int labId);
 
         Task<(int id, string resultMessage)> DeleteMedicationAsync(int Id);
