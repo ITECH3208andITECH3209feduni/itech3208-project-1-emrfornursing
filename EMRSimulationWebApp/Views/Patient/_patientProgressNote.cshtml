@@ -1,13 +1,44 @@
-﻿<div class="container">
-    <div class="row section">
-        <!-- Left Column -->
-        <!-- Right Column -->
+@using EMRSimulation.Domain.Dtos;
+@model ProgressNotesDto
 
+@*
+    Serves both "write a note" and "edit a note". Model is null for a new note and
+    populated when the Edit button on the list loads /patient/getprogressnote?id=N.
+*@
+@{
+    var isEdit = Model != null && Model.Id > 0;
+
+    // Default a new note to now. An academic writing up a scenario after the fact can
+    // change both, which is what Naomi asked for.
+    var noteMoment = Model?.NotesDate ?? DateTime.Now;
+    var noteDate = noteMoment.ToString("yyyy-MM-dd");
+    var noteTime = noteMoment.ToString("HH:mm");
+}
+
+<div class="container">
+    <div class="row section">
         <div class="col-md-8">
 
             <div class="form-group row mb-1" style="background-color: black;color: white;">
                 <div class="col-sm-7">
-                    <label class="col-sm-5 col-form-label">PROGRESS NOTE</label>
+                    <label class="col-sm-8 col-form-label">@(isEdit ? "EDIT PROGRESS NOTE" : "PROGRESS NOTE")</label>
+                </div>
+            </div>
+
+            <input type="hidden" id="txtProgressNoteId" value="@(isEdit ? Model!.Id : 0)" />
+
+            <div class="row mb-1">
+                <div class="col-sm-3">
+                    <label for="txtProgressNoteDate" class="form-label">Date</label>
+                </div>
+                <div class="col-sm-3">
+                    <input type="date" class="form-control" id="txtProgressNoteDate" value="@noteDate" />
+                </div>
+                <div class="col-sm-1">
+                    <label for="txtProgressNoteTime" class="form-label">Time</label>
+                </div>
+                <div class="col-sm-2">
+                    <input type="time" class="form-control" id="txtProgressNoteTime" value="@noteTime" />
                 </div>
             </div>
 
@@ -16,7 +47,7 @@
                     <label for="txtProgressNote" class="form-label">Progress Note</label>
                 </div>
                 <div class="col-sm-6">
-                    <textarea style="width:100%" id="txtProgressNote" rows="7"></textarea>
+                    <textarea style="width:100%" id="txtProgressNote" rows="7">@(Model?.Notes)</textarea>
                 </div>
             </div>
 
@@ -25,22 +56,28 @@
                     <label for="txtPorgressNoteNurseSign" class="form-label">Nurse Signature</label>
                 </div>
                 <div class="col-sm-6">
-                    <input type="text" class="form-control" id="txtPorgressNoteNurseSign" autocomplete="off">
+                    @* ProgressNotes.Sign is varchar(50); maxlength stops a silent truncation. *@
+                    <input type="text" class="form-control" id="txtPorgressNoteNurseSign" maxlength="50"
+                           value="@(Model?.Sign)" autocomplete="off">
                 </div>
             </div>
 
             <div class="row mb-1">
                 <div class="col-sm-3">
-                    
                 </div>
                 <div class="col-sm-6">
-                    <button type="button" id="btnSaveProgressNote" class="btn btn-primary" style="background-color:#FF8A30;float: right;">Save</button>
+                    <button type="button" id="btnSaveProgressNote" class="btn btn-primary" style="background-color:#FF8A30;float: right;">
+                        @(isEdit ? "Save changes" : "Save")
+                    </button>
+                    @if (isEdit)
+                    {
+                        <button type="button" id="btnCancelProgressNote" class="btn btn-secondary" style="background-color:black;float: right;margin-right:8px;">Cancel</button>
+                    }
                 </div>
             </div>
 
             <div>
                 <label id="lblMessage" style="color:green"></label>
-                
             </div>
 
         </div>
@@ -54,28 +91,55 @@
             var LabId = $('#txtLabId').val();
             var PatientId = $('#txtPatientId').val();
 
-            var currentDateTime = formatDate(new Date());
+            function loadNoteList() {
+                $.ajax({
+                    url: "/patient/GetProgressNoteList",
+                    method: "GET",
+                    data: { labId: LabId, patientId: PatientId },
+                    success: function (response) {
+                        $('#content-area').html("");
+                        $('#content-area').html(response);
+                    },
+                    error: function (xhr, status, error) {
+                        console.error("Error loading the page:", error);
+                    }
+                });
+            }
+
+            $("#btnCancelProgressNote").on("click", function (e) {
+                e.preventDefault();
+                loadNoteList();
+            });
 
             $("#btnSaveProgressNote").on("click", function (e) {
                 e.preventDefault(); // Prevent default link behavior
 
+                var noteId = parseInt($('#txtProgressNoteId').val()) || 0;
                 var txtProgressNote = $('#txtProgressNote').val();
                 var txtPorgressNoteNurseSign = $('#txtPorgressNoteNurseSign').val();
+                var noteDate = $('#txtProgressNoteDate').val();
+                var noteTime = $('#txtProgressNoteTime').val();
 
-                if (txtProgressNote === "" || txtPorgressNoteNurseSign === "") 
+                if (txtProgressNote === "" || txtPorgressNoteNurseSign === ""
+                    || noteDate === "" || noteTime === "")
                 {
                     e.preventDefault();
                     $('#lblMessage').text("Please fill in the missing fields.").css('color', 'red');
                     return;
                 }
 
+                // The date and time inputs give "2026-07-30" and "10:30". Joined without a
+                // trailing Z so the value is read as the local time the user chose rather
+                // than being shifted into UTC.
+                var notesDateTime = noteDate + "T" + noteTime + ":00";
+
                 var toPost = {
-                    Id: 0,
+                    Id: noteId,
                     LabId: LabId,
                     PatientId: PatientId,
                     Notes: txtProgressNote,
                     Sign: txtPorgressNoteNurseSign,
-                    NotesDate: currentDateTime
+                    NotesDate: notesDateTime
                 };
 
                 $.ajax({
@@ -85,27 +149,25 @@
                     data: JSON.stringify(toPost), // Convert JavaScript object to JSON string
                     success: function (response) {
                         if (response > 0) {
-                            $('#lblMessage').text("Progress Note record added successfully").css('color', 'green');
+                            if (noteId > 0) {
+                                loadNoteList();
+                            } else {
+                                $('#lblMessage').text("Progress Note record added successfully").css('color', 'green');
+                                $('#txtProgressNote').val("");
+                            }
                         } else {
-                        $('#lblMessage').text("Error").css('color', 'red');
+                            $('#lblMessage').text("Error").css('color', 'red');
                         }
                     },
                     error: function (jqXHR, textStatus, errorThrown) {
-                        $("#error-message").text("Error occurred").css('color', 'red');
+                        if (jqXHR.status === 403) {
+                            $('#lblMessage').text("You can only edit notes written from your own login.").css('color', 'red');
+                        } else {
+                            $('#lblMessage').text("Error occurred").css('color', 'red');
+                        }
                     }
                 });
             });
-
-            function formatDate(date) {
-                var year = date.getFullYear();
-                var month = String(date.getMonth() + 1).padStart(2, '0'); // Months are zero-based
-                var day = String(date.getDate()).padStart(2, '0');
-                var hours = String(date.getHours()).padStart(2, '0');
-                var minutes = String(date.getMinutes()).padStart(2, '0');
-                var seconds = String(date.getSeconds()).padStart(2, '0');
-
-                return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}Z`; // Example format
-            }
 
         });
 </script>

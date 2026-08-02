@@ -158,6 +158,10 @@ namespace EMRSimulation.Infrastructure.Repositories
                                 Consciousness = reader.IsDBNull(reader.GetOrdinal("Consciousness")) ? null : reader.GetString(reader.GetOrdinal("Consciousness")),
                                 OxygenSaturation = reader.IsDBNull(reader.GetOrdinal("OxygenSaturation")) ? null : reader.GetString(reader.GetOrdinal("OxygenSaturation")),
                                 OxygenFlow = reader.IsDBNull(reader.GetOrdinal("OxygenFlow")) ? null : reader.GetString(reader.GetOrdinal("OxygenFlow")),
+                                // HasColumn guard so the list screen still renders against a database
+                                // where Sprint3_06 has not been applied yet.
+                                ModeOfDelivery = HasColumn(reader, "ModeOfDelivery") && !reader.IsDBNull(reader.GetOrdinal("ModeOfDelivery"))
+                                    ? reader.GetString(reader.GetOrdinal("ModeOfDelivery")) : null,
                                 BloodPressure = reader.IsDBNull(reader.GetOrdinal("BloodPressure")) ? null : reader.GetString(reader.GetOrdinal("BloodPressure")),
                                 BloodPressureDiastolic = reader.IsDBNull(reader.GetOrdinal("BloodPressureDiastolic")) ? null : reader.GetString(reader.GetOrdinal("BloodPressureDiastolic")),
 
@@ -218,6 +222,7 @@ namespace EMRSimulation.Infrastructure.Repositories
                     command.Parameters.Add(new SqlParameter("@Consciousness", addsDto.Consciousness ?? (object)DBNull.Value));
                     command.Parameters.Add(new SqlParameter("@OxygenSaturation", addsDto.OxygenSaturation ?? (object)DBNull.Value));
                     command.Parameters.Add(new SqlParameter("@OxygenFlow", addsDto.OxygenFlow ?? (object)DBNull.Value));
+                    command.Parameters.Add(new SqlParameter("@ModeOfDelivery", addsDto.ModeOfDelivery ?? (object)DBNull.Value));
                     command.Parameters.Add(new SqlParameter("@BloodPressure", addsDto.BloodPressure ?? (object)DBNull.Value));
                     command.Parameters.Add(new SqlParameter("@BloodPressureDiastolic", addsDto.BloodPressureDiastolic ?? (object)DBNull.Value));
 
@@ -261,6 +266,7 @@ namespace EMRSimulation.Infrastructure.Repositories
                     command.Parameters.Add(new SqlParameter("@Consciousness", addsDto.Consciousness ?? (object)DBNull.Value));
                     command.Parameters.Add(new SqlParameter("@OxygenSaturation", addsDto.OxygenSaturation ?? (object)DBNull.Value));
                     command.Parameters.Add(new SqlParameter("@OxygenFlow", addsDto.OxygenFlow ?? (object)DBNull.Value));
+                    command.Parameters.Add(new SqlParameter("@ModeOfDelivery", addsDto.ModeOfDelivery ?? (object)DBNull.Value));
                     command.Parameters.Add(new SqlParameter("@BloodPressure", addsDto.BloodPressure ?? (object)DBNull.Value));
                     command.Parameters.Add(new SqlParameter("@BloodPressureDiastolic", addsDto.BloodPressureDiastolic ?? (object)DBNull.Value));
 
@@ -2043,18 +2049,7 @@ namespace EMRSimulation.Infrastructure.Repositories
                     {
                         while (await reader.ReadAsync())
                         {
-                            var patient = new ProgressNotesDto
-                            {
-                                Id = reader.GetInt32(reader.GetOrdinal("Id")),
-                                LabId = reader.GetInt32(reader.GetOrdinal("LabId")),
-                                PatientId = reader.GetInt32(reader.GetOrdinal("PatientId")),
-                                NotesDate = reader.GetDateTime(reader.GetOrdinal("NotesDate")),
-                                Notes = reader.IsDBNull(reader.GetOrdinal("Notes")) ? null : reader.IsDBNull(reader.GetOrdinal("Notes")) ? null : reader.GetString(reader.GetOrdinal("Notes")),
-                                Sign = reader.IsDBNull(reader.GetOrdinal("Sign")) ? null : reader.IsDBNull(reader.GetOrdinal("Sign")) ? null : reader.GetString(reader.GetOrdinal("Sign")),
-                                NotesFrom = reader.IsDBNull(reader.GetOrdinal("NotesFrom")) ? null : reader.IsDBNull(reader.GetOrdinal("NotesFrom")) ? null : reader.GetString(reader.GetOrdinal("NotesFrom"))
-                            };
-
-                            patients.Add(patient);
+                            patients.Add(MapProgressNote(reader));
                         }
                     }
                 }
@@ -2063,7 +2058,46 @@ namespace EMRSimulation.Infrastructure.Repositories
             return patients;
         }
 
-       
+        public async Task<ProgressNotesDto?> GetProgressNoteByIdAsync(int Id)
+        {
+            using (var connection = await _dbConnectionFactory.CreateAsync())
+            {
+                using (var command = (SqlCommand)connection.CreateCommand())
+                {
+                    command.CommandText = "GetProgressNoteById";
+                    command.CommandType = CommandType.StoredProcedure;
+
+                    command.Parameters.Add(new SqlParameter("@Id", Id));
+
+                    using (var reader = await command.ExecuteReaderAsync())
+                    {
+                        if (await reader.ReadAsync())
+                            return MapProgressNote(reader);
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        // LabId, PatientId and NotesDate are all nullable on ProgressNotes, so every
+        // one of them is guarded. The unguarded GetDateTime this replaces threw on any
+        // row saved without a date.
+        private static ProgressNotesDto MapProgressNote(SqlDataReader reader)
+        {
+            return new ProgressNotesDto
+            {
+                Id = reader.GetInt32(reader.GetOrdinal("Id")),
+                LabId = reader.IsDBNull(reader.GetOrdinal("LabId")) ? 0 : reader.GetInt32(reader.GetOrdinal("LabId")),
+                PatientId = reader.IsDBNull(reader.GetOrdinal("PatientId")) ? 0 : reader.GetInt32(reader.GetOrdinal("PatientId")),
+                NotesDate = reader.IsDBNull(reader.GetOrdinal("NotesDate")) ? null : reader.GetDateTime(reader.GetOrdinal("NotesDate")),
+                Notes = reader.IsDBNull(reader.GetOrdinal("Notes")) ? null : reader.GetString(reader.GetOrdinal("Notes")),
+                Sign = reader.IsDBNull(reader.GetOrdinal("Sign")) ? null : reader.GetString(reader.GetOrdinal("Sign")),
+                NotesFrom = reader.IsDBNull(reader.GetOrdinal("NotesFrom")) ? null : reader.GetString(reader.GetOrdinal("NotesFrom"))
+            };
+        }
+
+
         public async Task<int> AddRiskmanIncidentAsync(RiskmanDto dto)
         {
             using (var connection = await _dbConnectionFactory.CreateAsync())

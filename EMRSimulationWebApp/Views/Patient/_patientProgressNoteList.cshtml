@@ -17,7 +17,8 @@
                 <th>Notes</th>
                 <th>&nbsp;</th>
                 <th>Sign</th>
-                <th>Notes Date</th>
+                <th>Date</th>
+                <th>Time</th>
                 <th>Action</th>
             </tr>
         </thead>
@@ -38,25 +39,27 @@
                     </td>
                     <td><a href="#" class="read-more" data-bs-toggle="modal" data-bs-target="#notesModal" data-fulltext="@patient.Notes">Read More</a></td>
                     <td>@patient.Sign</td>
-                    <td>@patient.NotesDate</td>
+                    @* The recorded date and time, shown separately as in the wireframe.
+                       Notes saved before Sprint 3 may have no date at all. *@
+                    <td>@(patient.NotesDate?.ToString("dd-MMM-yyyy") ?? "-")</td>
+                    <td>@(patient.NotesDate?.ToString("HH:mm") ?? "-")</td>
 
                     <td>
                     @if (User.HasClaim(c => c.Value == "student"))
                     {
-                        if(patient.NotesFrom == "student")
+                        @* Naomi: delete removed from the student login, edit enabled.
+                           Students may still correct their own notes, not anyone else's. *@
+                        if (patient.NotesFrom == "student")
                         {
-                        
-                            <a href="javascript:void(0);" class="btn btn-primary deleteProgressNote" data-custom="@patient.Id" style="background-color:#FF8A30;">Delete</a>
-                        
+                            <a href="javascript:void(0);" class="btn btn-primary editProgressNote" data-custom="@patient.Id" style="background-color:#FF8A30;">Edit</a>
                         }
                     }
                     else if (User.HasClaim(c => c.Value == "supervisor"))
                     {
-                        if (patient.NotesFrom == "supervisor")
+                        if (patient.NotesFrom == "supervisor" || string.IsNullOrEmpty(patient.NotesFrom))
                         {
-                        
-                                <a href="javascript:void(0);" class="btn btn-primary deleteProgressNote" data-custom="@patient.Id" style="background-color:#FF8A30;">Delete</a>
-                        
+                            <a href="javascript:void(0);" class="btn btn-primary editProgressNote" data-custom="@patient.Id" style="background-color:#FF8A30;">Edit</a>
+                            <a href="javascript:void(0);" class="btn btn-primary deleteProgressNote" data-custom="@patient.Id" style="background-color:#FF8A30;">Delete</a>
                         }
                     }
                     </td>
@@ -114,6 +117,28 @@
 
         LabId = $('#txtLabId').val();
         PatientId = $('#txtPatientId').val();
+
+        $('#patientsProgressNoteTable').on('click', '.editProgressNote', function () {
+
+            var noteId = $(this).attr("data-custom");
+
+            $.ajax({
+                url: "/patient/getprogressnote",
+                method: "GET",
+                data: { id: noteId },
+                success: function (response) {
+                    $('#content-area').html("");
+                    $('#content-area').html(response);
+                },
+                error: function (xhr, status, error) {
+                    if (xhr.status === 403) {
+                        $('#lblMessage').text("You can only edit notes written from your own login.").css('color', 'red');
+                    } else {
+                        $('#lblMessage').text("Could not open that note.").css('color', 'red');
+                    }
+                }
+            });
+        });
 
         $('#patientsProgressNoteTable').on('click', '.deleteProgressNote', function() {
 

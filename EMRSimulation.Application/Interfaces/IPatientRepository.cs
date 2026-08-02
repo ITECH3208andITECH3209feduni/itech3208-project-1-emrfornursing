@@ -44,6 +44,7 @@ namespace EMRSimulation.Application.Interfaces
 
         Task<int> AddProgressNotesAsync(ProgressNotesDto addsDto);
         Task<IEnumerable<ProgressNotesDto>> GetProgressNotesAsync(int labId, int patientId);
+        Task<ProgressNotesDto?> GetProgressNoteByIdAsync(int Id);
         Task<int> DeleteProgressNotesAsync(int Id);
 
         Task<MedicationPrnChartDto> GetMedicationPrnChartByIdAsync(int Id, int labId);

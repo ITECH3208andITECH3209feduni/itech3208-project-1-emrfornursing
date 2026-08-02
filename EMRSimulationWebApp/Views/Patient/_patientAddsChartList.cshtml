@@ -15,6 +15,7 @@
                 <th>Respiratory Rate</th>
                 <th>OxygenSaturation</th>
                 <th>OxygenFlow</th>
+                <th>Mode of Delivery</th>
                 <th>Blood Pressure Systolic</th>
                 <th>Blood Pressure Diastolic</th>
                 <th>Heart Rate</th>
@@ -64,6 +65,9 @@
                     }
 
                     <td>@patient.OxygenFlow</td>
+
+                    @* Observations recorded before Sprint 3 have no mode of delivery. *@
+                    <td>@(string.IsNullOrEmpty(patient.ModeOfDelivery) ? "-" : patient.ModeOfDelivery)</td>
 
                     @if (patient.BloodPressure.Contains("Write"))
                     {

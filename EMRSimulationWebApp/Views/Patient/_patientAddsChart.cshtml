@@ -187,6 +187,23 @@
                             <option value="<=3" data-color="#FFFFFF" data-score="0" class="white"><=3</option>
                         </select>
                         <div class="color-box" id="colorBoxO2Flow"></div>
+                        <div class="form-check form-check-inline ms-2 align-middle">
+                            <input class="form-check-input" type="checkbox" id="chkO2FlowNA" />
+                            <label class="form-check-label" for="chkO2FlowNA" style="font-weight:normal">N/A</label>
+                        </div>
+                    </div>
+                </div>
+                @* Mode of Delivery sits directly under the flow rate, as Naomi asked.
+                   It carries no ADDS score, so no data-label class and no colour box. *@
+                <div class="form-group row mb-1">
+                    <label for="ddlModeOfDelivery" class="col-sm-5 col-form-label">Mode of Delivery</label>
+                    <div class="col-sm-7">
+                        <select id="ddlModeOfDelivery">
+                            <option value=""></option>
+                            <option value="Room Air (RA)">Room Air (RA)</option>
+                            <option value="Intra Nasal Cannula (INC)">Intra Nasal Cannula (INC)</option>
+                            <option value="Hudson Mask (HM)">Hudson Mask (HM)</option>
+                        </select>
                     </div>
                 </div>
                 <div class="form-group row mb-1">
@@ -655,6 +672,24 @@ $('.data-label').on('click', function() {
 
         document.getElementById('ddlO2Flow').dispatchEvent(new Event('change'));
 
+        // N/A means no supplemental oxygen was running, so there is no flow rate to
+        // record. The dropdown is cleared and disabled rather than hidden, so it is
+        // obvious why it cannot be used. An unrecorded rate scores 0 either way.
+        $('#chkO2FlowNA').on('change', function () {
+            var na = this.checked;
+
+            $('#ddlO2Flow').prop('disabled', na);
+
+            if (na) {
+                $('#ddlO2Flow').val("");
+                document.getElementById('colorBoxO2Flow').style.backgroundColor = "#FFFFFF";
+                $(".flowratescore").html("0");
+                updateTotalScore();
+            } else {
+                document.getElementById('ddlO2Flow').dispatchEvent(new Event('change'));
+            }
+        });
+
         document.getElementById('ddlBpRate').addEventListener('change', function () {
             var selectedOption = this.options[this.selectedIndex];
             var color = selectedOption.getAttribute('data-color');
@@ -798,6 +833,8 @@ $('.data-label').on('click', function() {
             var ddlRespiratory = $('#ddlRespiratory').val();
             var ddlO2Sat = $('#ddlO2Sat').val();
             var ddlO2Flow = $('#ddlO2Flow').val();
+            var o2FlowNA = $('#chkO2FlowNA').is(':checked');
+            var ddlModeOfDelivery = $('#ddlModeOfDelivery').val();
             var ddlBpRate = $('#ddlBpRate').val();
             var ddlBpRateDiastolic = $('#ddlBpRateDiastolic').val();
             var ddlHeartRate = $('#ddlHeartRate').val();
@@ -807,7 +844,10 @@ $('.data-label').on('click', function() {
             var enteredDate = $('#enteredDate').val().trim();
             var enteredTime = $('#enteredTime').val().trim();
 
-            if (ddlRespiratory === "" || ddlO2Sat === "" || ddlO2Flow === "" 
+            // A flow rate is required unless N/A is ticked. Mode of delivery is required
+            // either way: "no oxygen running" is recorded as Room Air, not left blank.
+            if (ddlRespiratory === "" || ddlO2Sat === ""
+                || (ddlO2Flow === "" && !o2FlowNA) || ddlModeOfDelivery === ""
                 || ddlBpRate === "" || ddlBpRateDiastolic === "" || ddlHeartRate === ""
                 || ddlTemperatureC === "" || ddlConsciousness === ""
                 || enteredDate === "" || enteredTime === "") {
@@ -827,7 +867,8 @@ $('.data-label').on('click', function() {
                 Temperature: ddlTemperatureC,
                 Consciousness: ddlConsciousness,
                 OxygenSaturation: ddlO2Sat,
-                OxygenFlow: ddlO2Flow,
+                OxygenFlow: o2FlowNA ? "N/A" : ddlO2Flow,
+                ModeOfDelivery: ddlModeOfDelivery,
                 BloodPressure: ddlBpRate,
                 BloodPressureDiastolic: ddlBpRateDiastolic,
 
