@@ -53,7 +53,9 @@
 
             <div class="row mb-1">
                 <div class="col-sm-3">
-                    <label for="txtPorgressNoteNurseSign" class="form-label">Nurse Signature</label>
+                    @* Wireframe wording. The id keeps its original spelling so the existing
+                       selectors elsewhere are not disturbed. *@
+                    <label for="txtPorgressNoteNurseSign" class="form-label">Signature / Initials</label>
                 </div>
                 <div class="col-sm-6">
                     @* ProgressNotes.Sign is varchar(50); maxlength stops a silent truncation. *@
@@ -72,6 +74,12 @@
                     @if (isEdit)
                     {
                         <button type="button" id="btnCancelProgressNote" class="btn btn-secondary" style="background-color:black;float: right;margin-right:8px;">Cancel</button>
+                    }
+                    else
+                    {
+                        @* Wireframe pairs Save with Clear. Only on a new note - on an edit the
+                           equivalent action is Cancel, which leaves the saved note untouched. *@
+                        <button type="button" id="btnClearProgressNote" class="btn btn-secondary" style="background-color:black;float: right;margin-right:8px;">Clear</button>
                     }
                 </div>
             </div>
@@ -109,6 +117,21 @@
             $("#btnCancelProgressNote").on("click", function (e) {
                 e.preventDefault();
                 loadNoteList();
+            });
+
+            // Clears what has been typed and returns the date and time to now. It does not
+            // touch anything already saved.
+            $("#btnClearProgressNote").on("click", function (e) {
+                e.preventDefault();
+
+                var now = new Date();
+                var pad = function (n) { return String(n).padStart(2, '0'); };
+
+                $('#txtProgressNote').val("");
+                $('#txtPorgressNoteNurseSign').val("");
+                $('#txtProgressNoteDate').val(now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate()));
+                $('#txtProgressNoteTime').val(pad(now.getHours()) + ':' + pad(now.getMinutes()));
+                $('#lblMessage').text("");
             });
 
             $("#btnSaveProgressNote").on("click", function (e) {

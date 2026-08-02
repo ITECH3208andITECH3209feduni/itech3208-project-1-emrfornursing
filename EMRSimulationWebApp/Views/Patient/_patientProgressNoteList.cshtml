@@ -9,6 +9,20 @@
         <label class="col-sm-5 col-form-label">PROGRESS NOTES</label>
     </div>
 </div>
+@* Search and sort, as in the wireframe. The sort control is explicit rather than relying
+   on the column header, because the header sorts the formatted date text. *@
+<div class="row mb-2 mt-2">
+    <div class="col-sm-6">
+        <input type="text" id="txtNoteSearch" class="form-control" placeholder="Search notes.." autocomplete="off" />
+    </div>
+    <div class="col-sm-3 offset-sm-3">
+        <select id="ddlNoteSort" class="form-select">
+            <option value="desc">Sort : Newest first</option>
+            <option value="asc">Sort : Oldest first</option>
+        </select>
+    </div>
+</div>
+
 <div class="text-left">
     <table id="patientsProgressNoteTable" class="display">
         <thead>
@@ -27,7 +41,10 @@
             {
                 <tr>
                     <td>@patient.Id</td>
-                    <td>
+                    @* data-search gives the search the whole note. Without it only the
+                       70 character preview below is indexed, so a word later in a long
+                       note would not be found. *@
+                    <td data-search="@patient.Notes">
                         @if (!string.IsNullOrEmpty(patient.Notes) && patient.Notes.Length > 50)
                         {
                             <span class="truncated-text">@patient.Notes.Substring(0, 70)...</span>                            
@@ -40,8 +57,10 @@
                     <td><a href="#" class="read-more" data-bs-toggle="modal" data-bs-target="#notesModal" data-fulltext="@patient.Notes">Read More</a></td>
                     <td>@patient.Sign</td>
                     @* The recorded date and time, shown separately as in the wireframe.
-                       Notes saved before Sprint 3 may have no date at all. *@
-                    <td>@(patient.NotesDate?.ToString("dd-MMM-yyyy") ?? "-")</td>
+                       Notes saved before Sprint 3 may have no date at all.
+                       data-order carries a sortable form, because "29-Jul-2026" sorts
+                       alphabetically and would put April before January. *@
+                    <td data-order="@(patient.NotesDate?.ToString("yyyyMMddHHmm") ?? "0")">@(patient.NotesDate?.ToString("dd-MMM-yyyy") ?? "-")</td>
                     <td>@(patient.NotesDate?.ToString("HH:mm") ?? "-")</td>
 
                     <td>
@@ -94,20 +113,48 @@
     var PatientId = null;
 
     $(document).ready(function () {
+        // Column 4 is the recorded date, sorted on its data-order value. Searching is on
+        // but DataTables' own search box is suppressed, because the wireframe places the
+        // field above the table alongside the sort control.
         var table = $('#patientsProgressNoteTable').DataTable({
             "paging": true, // Remove paging control
             "info": false, // Remove "Showing 1 to X" information
-            "searching": false, // Remove search box
-            "ordering": false, // Enable column ordering (if needed)
+            "searching": true,
+            // DataTables 2.x: 'layout' replaces the old 'dom' string. Clearing topEnd
+            // removes the built-in search box, since ours sits above the table.
+            "layout": {
+                "topStart": null,
+                "topEnd": null,
+                "bottomStart": null,
+                "bottomEnd": "paging"
+            },
+            "ordering": true,
+            "order": [[4, "desc"]],
             "autoWidth": false, // Prevent auto width
             "lengthChange": false,  // Hide the entries per page dropdown
             // "pageLength": 3,  // Set the default number of entries per page (optional)
+            "language": {
+                "emptyTable": "No progress notes recorded for this patient.",
+                "zeroRecords": "No notes match that search."
+            },
             "columnDefs": [
                 {
                     "targets": [0],
                     "visible": false
-                } // Disable sorting for the action column
+                },
+                {
+                    "targets": [1, 2, 3, 5, 6],
+                    "orderable": false
+                }
             ]
+        });
+
+        $('#txtNoteSearch').on('keyup', function () {
+            table.search(this.value).draw();
+        });
+
+        $('#ddlNoteSort').on('change', function () {
+            table.order([[4, this.value]]).draw();
         });
 
         $('#patientsProgressNoteTable').on('click', '.read-more', function() {
