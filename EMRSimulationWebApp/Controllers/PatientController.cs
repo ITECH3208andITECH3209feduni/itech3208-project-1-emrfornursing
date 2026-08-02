@@ -484,7 +484,16 @@ namespace EMRSimulation.WebApp.Controllers
                 if (!CanModifyProgressNote(existing))
                     return StatusCode(403, "You can only edit notes written from your own login.");
 
+                // An edit may change the text, the signature and the date and time.
+                // It may not change who wrote the note, which patient it belongs to,
+                // or which lab it sits in. Those three come from the stored row, not
+                // from the request: UpdateProgressNote assigns all of them, so
+                // accepting them from the client would let a caller move a note to
+                // another patient or campus by editing their own note. This is the
+                // same failure mode as trusting txtLabId at write time.
                 addsDto.NotesFrom = existing.NotesFrom;
+                addsDto.LabId = existing.LabId;
+                addsDto.PatientId = existing.PatientId;
             }
             else if (User.HasClaim(c => c.Value == "supervisor"))
             {
