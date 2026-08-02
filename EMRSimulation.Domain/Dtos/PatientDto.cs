@@ -18,5 +18,12 @@
         public string? Alerts { get; set; }
         public string? UriNumber { get; set; }
         public int? Alert { get; set; }
+
+        /// <summary>
+        /// Null for legacy lab-owned patients (all Sprint 1/2 data).
+        /// Set for patients belonging to a module in the global repository,
+        /// which carry LabId = 0.
+        /// </summary>
+        public int? ModuleId { get; set; }
     }
 }

@@ -34,6 +34,10 @@ namespace EMRSimulation.Infrastructure
             services.AddScoped<ILabRepository, LabRepository>();
             services.AddScoped<ILabService, LabService>();
 
+            // Sprint 3 - global module repository
+            services.AddScoped<IModuleRepository, ModuleRepository>();
+            services.AddScoped<IModuleService, ModuleService>();
+
             services.AddScoped<IPatientService, PatientService>();
             return services;
         }
