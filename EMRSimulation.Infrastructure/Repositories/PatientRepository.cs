@@ -50,10 +50,12 @@ namespace EMRSimulation.Infrastructure.Repositories
                             patient.LabId = reader.GetInt32(reader.GetOrdinal("LabId"));
                             patient.FirstName = reader.IsDBNull(reader.GetOrdinal("FirstName")) ? null : reader.GetString(reader.GetOrdinal("FirstName"));
                             patient.LastName = reader.IsDBNull(reader.GetOrdinal("LastName")) ? null : reader.GetString(reader.GetOrdinal("LastName"));
-                            patient.DateOfBirth = reader.GetDateTime(reader.GetOrdinal("DateOfBirth"));
+                            // Nullable: a module's blank patient has no DOB until an
+                            // academic fills it in, and GetDateTime throws on NULL.
+                            patient.DateOfBirth = reader.IsDBNull(reader.GetOrdinal("DateOfBirth")) ? null : reader.GetDateTime(reader.GetOrdinal("DateOfBirth"));
                             patient.Gender = reader.IsDBNull(reader.GetOrdinal("Gender")) ? null : reader.GetString(reader.GetOrdinal("Gender"));
                             patient.Address = reader.IsDBNull(reader.GetOrdinal("Address")) ? null : reader.GetString(reader.GetOrdinal("Address"));
-                            patient.AdmitDate = reader.GetDateTime(reader.GetOrdinal("AdmitDate"));
+                            patient.AdmitDate = reader.IsDBNull(reader.GetOrdinal("AdmitDate")) ? null : reader.GetDateTime(reader.GetOrdinal("AdmitDate"));
                             patient.Weight = reader.IsDBNull(reader.GetOrdinal("Weight")) ? null : reader.GetString(reader.GetOrdinal("Weight"));
                             patient.Height = reader.IsDBNull(reader.GetOrdinal("Height")) ? null : reader.GetString(reader.GetOrdinal("Height"));
                             patient.Age = reader.IsDBNull(reader.GetOrdinal("Age")) ? null : reader.GetString(reader.GetOrdinal("Age"));
@@ -96,10 +98,12 @@ namespace EMRSimulation.Infrastructure.Repositories
                                 LabId = reader.GetInt32(reader.GetOrdinal("LabId")),
                                 FirstName = reader.IsDBNull(reader.GetOrdinal("FirstName")) ? null : reader.GetString(reader.GetOrdinal("FirstName")),
                                 LastName = reader.IsDBNull(reader.GetOrdinal("LastName")) ? null : reader.GetString(reader.GetOrdinal("LastName")),
-                                DateOfBirth = reader.GetDateTime(reader.GetOrdinal("DateOfBirth")),
+                                // Nullable: a module's blank patient has no DOB until an
+                                // academic fills it in, and GetDateTime throws on NULL.
+                                DateOfBirth = reader.IsDBNull(reader.GetOrdinal("DateOfBirth")) ? null : reader.GetDateTime(reader.GetOrdinal("DateOfBirth")),
                                 Gender = reader.IsDBNull(reader.GetOrdinal("Gender")) ? null : reader.GetString(reader.GetOrdinal("Gender")),
                                 Address = reader.IsDBNull(reader.GetOrdinal("Address")) ? null : reader.GetString(reader.GetOrdinal("Address")),
-                                AdmitDate = reader.GetDateTime(reader.GetOrdinal("AdmitDate")),
+                                AdmitDate = reader.IsDBNull(reader.GetOrdinal("AdmitDate")) ? null : reader.GetDateTime(reader.GetOrdinal("AdmitDate")),
                                 Weight = reader.IsDBNull(reader.GetOrdinal("Weight")) ? null : reader.GetString(reader.GetOrdinal("Weight")),
                                 Height = reader.IsDBNull(reader.GetOrdinal("Height")) ? null : reader.GetString(reader.GetOrdinal("Height")),
                                 Age = reader.IsDBNull(reader.GetOrdinal("Age")) ? null : reader.GetString(reader.GetOrdinal("Age")),

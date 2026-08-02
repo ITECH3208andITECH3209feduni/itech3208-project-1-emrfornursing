@@ -1,5 +1,10 @@
 @{
     ViewData["Title"] = "Patient List";
+
+    // Sprint 3. ModuleController sets this when listing a module's patient. A module
+    // owns exactly one patient which is its whole EMR structure, so deleting it is
+    // not offered here - removing the module is the supported route.
+    var moduleMode = ViewData["ModuleMode"] as bool? ?? false;
 }
 @using EMRSimulation.Domain.Dtos;
 @model IEnumerable<PatientDto>
@@ -34,7 +39,14 @@
                         <a href="javascript:void(0);" class="btn btn-primary clearPatientData" data-custom="@patient.Id" style="background-color:#FF8A30;">Clear Records</a>
                     </td>
                     <td>
-                        <a href="javascript:void(0);" class="btn btn-primary deletePatientData" data-custom="@patient.Id" style="background-color:#FF8A30;">Delete Patient</a>
+                        @if (moduleMode)
+                        {
+                            <span class="text-muted small">Delete via module</span>
+                        }
+                        else
+                        {
+                            <a href="javascript:void(0);" class="btn btn-primary deletePatientData" data-custom="@patient.Id" style="background-color:#FF8A30;">Delete Patient</a>
+                        }
                     </td>
                 </tr>
             }
