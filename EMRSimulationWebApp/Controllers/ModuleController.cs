@@ -37,6 +37,16 @@ namespace EMRSimulationWebApp.Controllers
                              System.StringComparison.OrdinalIgnoreCase);
 
         /// <summary>
+        /// Explicit 403 rather than Forbid(). Under cookie authentication Forbid()
+        /// redirects to AccessDeniedPath, which does not exist here, so a blocked
+        /// student saw a 404 from an AJAX call - indistinguishable from a broken
+        /// URL. The action was correctly refused either way; only the response was
+        /// misleading.
+        /// </summary>
+        private IActionResult SupervisorOnly()
+            => StatusCode(403, "This action is only available to a Supervisor login.");
+
+        /// <summary>
         /// Supervisor accounts are per campus and the claim carries labId, not a
         /// supervisor id, so ownership is recorded as the campus that created the
         /// module. It is audit information only - GetModules never filters on it.
@@ -115,7 +125,7 @@ namespace EMRSimulationWebApp.Controllers
         [HttpPost]
         public async Task<IActionResult> UpdateModulePatient([FromBody] PatientDto dto)
         {
-            if (!IsSupervisor()) return Forbid();
+            if (!IsSupervisor()) return SupervisorOnly();
             if (dto == null || dto.Id <= 0) return BadRequest("An existing patient is required.");
 
             // Confirm the patient really is module-owned before writing. Without this
@@ -149,7 +159,7 @@ namespace EMRSimulationWebApp.Controllers
         [HttpPost]
         public async Task<IActionResult> AddModule([FromBody] ModuleDto dto)
         {
-            if (!IsSupervisor()) return Forbid();
+            if (!IsSupervisor()) return SupervisorOnly();
             if (dto == null) return BadRequest("Module data is required.");
             if (string.IsNullOrWhiteSpace(dto.ModuleName)) return BadRequest("Module name is required.");
             if (dto.UnitId <= 0) return BadRequest("A unit must be selected.");
@@ -168,7 +178,7 @@ namespace EMRSimulationWebApp.Controllers
         [HttpPost]
         public async Task<IActionResult> CopyModule([FromBody] CopyModuleRequest request)
         {
-            if (!IsSupervisor()) return Forbid();
+            if (!IsSupervisor()) return SupervisorOnly();
             if (request == null) return BadRequest("Copy details are required.");
             if (request.SourceModuleId <= 0) return BadRequest("A source module must be selected.");
             if (string.IsNullOrWhiteSpace(request.NewModuleName)) return BadRequest("A name for the new module is required.");
@@ -193,7 +203,7 @@ namespace EMRSimulationWebApp.Controllers
         [HttpPost]
         public async Task<IActionResult> RenameModule([FromBody] RenameModuleRequest request)
         {
-            if (!IsSupervisor()) return Forbid();
+            if (!IsSupervisor()) return SupervisorOnly();
             if (request == null) return BadRequest("Rename details are required.");
             if (string.IsNullOrWhiteSpace(request.NewName)) return BadRequest("A new name is required.");
 
@@ -210,7 +220,7 @@ namespace EMRSimulationWebApp.Controllers
 
         public async Task<IActionResult> DeleteModule(int moduleId)
         {
-            if (!IsSupervisor()) return Forbid();
+            if (!IsSupervisor()) return SupervisorOnly();
 
             try
             {
@@ -239,7 +249,7 @@ namespace EMRSimulationWebApp.Controllers
         [HttpPost]
         public async Task<IActionResult> LoadIntoLab([FromBody] LoadIntoLabRequest request)
         {
-            if (!IsSupervisor()) return Forbid();
+            if (!IsSupervisor()) return SupervisorOnly();
             if (request == null || request.ModuleId <= 0) return BadRequest("A module must be selected.");
 
             var labId = CreatedBy();
