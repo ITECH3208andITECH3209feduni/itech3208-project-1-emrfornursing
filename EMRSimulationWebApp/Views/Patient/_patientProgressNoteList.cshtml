@@ -45,9 +45,16 @@
                        70 character preview below is indexed, so a word later in a long
                        note would not be found. *@
                     <td data-search="@patient.Notes">
-                        @if (!string.IsNullOrEmpty(patient.Notes) && patient.Notes.Length > 50)
+                        @*
+                            The threshold and the substring length must match. This guarded
+                            on 50 but cut at 70, so any note between 51 and 69 characters
+                            threw ArgumentOutOfRangeException - and because one bad row
+                            fails the whole view, a single short note blanked the entire
+                            progress note list for that patient.
+                        *@
+                        @if (!string.IsNullOrEmpty(patient.Notes) && patient.Notes.Length > 70)
                         {
-                            <span class="truncated-text">@patient.Notes.Substring(0, 70)...</span>                            
+                            <span class="truncated-text">@patient.Notes.Substring(0, 70)...</span>
                         }
                         else
                         {
