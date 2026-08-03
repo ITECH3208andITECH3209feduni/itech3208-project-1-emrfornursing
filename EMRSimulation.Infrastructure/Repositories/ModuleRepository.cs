@@ -1,4 +1,4 @@
-using EMRSimulation.Application.Interfaces;
+﻿using EMRSimulation.Application.Interfaces;
 using EMRSimulation.Domain.Dtos;
 using EMRSimulation.Infrastructure.Connection;
 using System;
@@ -334,5 +334,73 @@ namespace EMRSimulation.Infrastructure.Repositories
 
             return patients;
         }
+        /* ------------------------------------------------------------------
+           loading a module into a lab (Option B)
+           ------------------------------------------------------------------ */
+
+        public async Task<ModuleLoadResultDto?> LoadModuleIntoLabAsync(int moduleId, int labId)
+        {
+            using (var connection = await _dbConnectionFactory.CreateAsync())
+            using (var command = (SqlCommand)connection.CreateCommand())
+            {
+                command.CommandText = "LoadModuleIntoLab";
+                command.CommandType = CommandType.StoredProcedure;
+                command.Parameters.Add(new SqlParameter("@ModuleId", moduleId));
+                command.Parameters.Add(new SqlParameter("@LabId", labId));
+
+                // The proc copies every clinical table for the patient, so on a
+                // populated module this is a lot more work than a normal read.
+                command.CommandTimeout = 120;
+
+                using (var reader = await command.ExecuteReaderAsync())
+                {
+                    if (await reader.ReadAsync())
+                    {
+                        return new ModuleLoadResultDto
+                        {
+                            PatientId            = reader.IsDBNull(reader.GetOrdinal("PatientId")) ? 0 : reader.GetInt32(reader.GetOrdinal("PatientId")),
+                            ModuleId             = reader.GetInt32(reader.GetOrdinal("ModuleId")),
+                            LabId                = reader.GetInt32(reader.GetOrdinal("LabId")),
+                            ReplacedExistingCopy = reader.GetInt32(reader.GetOrdinal("ReplacedExistingCopy")),
+                            RowsRemoved          = reader.GetInt32(reader.GetOrdinal("RowsRemoved"))
+                        };
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        public async Task<IEnumerable<LabModuleLoadDto>> GetLabModuleLoadsAsync(int labId)
+        {
+            var loads = new List<LabModuleLoadDto>();
+
+            using (var connection = await _dbConnectionFactory.CreateAsync())
+            using (var command = (SqlCommand)connection.CreateCommand())
+            {
+                command.CommandText = "GetLabModuleLoads";
+                command.CommandType = CommandType.StoredProcedure;
+                command.Parameters.Add(new SqlParameter("@LabId", labId));
+
+                using (var reader = await command.ExecuteReaderAsync())
+                {
+                    while (await reader.ReadAsync())
+                    {
+                        loads.Add(new LabModuleLoadDto
+                        {
+                            ModuleId        = reader.GetInt32(reader.GetOrdinal("ModuleId")),
+                            PatientId       = reader.GetInt32(reader.GetOrdinal("PatientId")),
+                            FirstName       = Str(reader, "FirstName"),
+                            LastName        = Str(reader, "LastName"),
+                            LoadedIntoLabAt = NullableDate(reader, "LoadedIntoLabAt"),
+                            ModuleName      = Str(reader, "ModuleName")
+                        });
+                    }
+                }
+            }
+
+            return loads;
+        }
+
     }
 }

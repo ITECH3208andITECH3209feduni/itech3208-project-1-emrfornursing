@@ -1,4 +1,4 @@
-@{
+﻿@{
     ViewData["Title"] = "Patient List";
 }
 @using EMRSimulation.Domain.Dtos;
@@ -22,6 +22,12 @@
     .edit-actions button { padding:9px 18px; border-radius:6px; border:none; font-weight:600; cursor:pointer; }
     #closeEditPatient { background:#e5e7eb; color:#111; }
     #saveEditPatient { background:#FF8A30; color:#fff; }
+
+    /* Marks a patient that was loaded from a module. Supervisor view only -
+       students see an ordinary patient list, per Naomi's brief. */
+    .module-copy-badge { display:inline-block; margin-top:3px; font-size:11px; line-height:1.3;
+                         color:#8a5400; background:#fff3cd; border:1px solid #ffe08a;
+                         border-radius:4px; padding:1px 6px; }
 </style>
 
 <div class="text-left">
@@ -173,6 +179,59 @@
                     "visible": false
                 }
             ]
+        });
+
+        // Mark patients that were loaded from a module, so an academic can tell at
+        // a glance which ones get replaced the next time that module is loaded.
+        //
+        // Deliberately NOT rendered into the cell by Razor. This table is DOM-sourced,
+        // so DataTables caches each cell's contents at initialisation and the row click
+        // handler reads them positionally - data[3] is the last name and is written
+        // straight into the patient card. Markup added to that cell server-side would
+        // end up inside the patient's displayed name. Appending to the rendered node
+        // afterwards leaves the cached data untouched.
+        //
+        // The endpoint returns an empty array for students, so nothing is drawn on the
+        // student view - they see an ordinary patient list, as Naomi asked.
+        var moduleLoadsByPatient = {};
+
+        function applyModuleBadges() {
+            table.rows().every(function () {
+                var rowData = this.data();
+                var load = moduleLoadsByPatient[parseInt(rowData[0])];
+                if (!load) return;
+
+                var cell = table.cell(this.index(), 3).node();
+                if (!cell || $(cell).find('.module-copy-badge').length) return;
+
+                var when = load.loadedAt ? new Date(load.loadedAt) : null;
+                var whenText = when
+                    ? when.toLocaleDateString() + ' ' + when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    : 'earlier';
+
+                $('<div>').append(
+                    $('<span>')
+                        .addClass('module-copy-badge')
+                        .attr('title', 'Loaded from the module repository on ' + whenText +
+                                       '. Loading that module again replaces this patient and deletes anything written into it.')
+                        .text('Module copy - ' + (load.moduleName || 'a module'))
+                ).appendTo(cell);
+            });
+        }
+
+        $.ajax({
+            url: '/module/getlabmoduleloads',
+            method: 'GET',
+            success: function (loads) {
+                (loads || []).forEach(function (l) { moduleLoadsByPatient[l.patientId] = l; });
+                applyModuleBadges();
+                // Paging re-renders rows, so re-apply after every draw.
+                table.on('draw.dt', applyModuleBadges);
+            },
+            error: function (xhr) {
+                // Informational only; a failure here should not disturb the list.
+                console.error('Could not read lab module loads:', xhr.status);
+            }
         });
 
         // Row click event to get first name and display it

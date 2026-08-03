@@ -1,4 +1,4 @@
-@*
+﻿@*
     Sprint 3, Requirement 1 - Global Module Repository (Supervisor View).
 
     Lets an academic browse Year Level -> Unit -> Module, create a new module
@@ -153,6 +153,37 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-danger" id="btnConfirmDeleteModule">Delete Module</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="loadIntoLabModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="loadIntoLabTitle">Load Module Into Your Lab</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="loadModuleId" value="0" />
+                <p>
+                    Load <strong id="loadModuleName"></strong> into your lab, ready for class?
+                </p>
+                <p class="small mb-2">
+                    The patient and every chart are copied into your lab exactly as prepared.
+                    Students will see the patient in their normal patient list. The module
+                    itself is not changed, and other campuses are not affected.
+                </p>
+                <p class="text-danger small mb-0 d-none" id="loadReplaceWarning">
+                    This module is already in your lab. Loading it again replaces that copy
+                    and permanently deletes anything students have written into it. This is
+                    how a scenario is reset between classes, and it cannot be undone.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="btnConfirmLoadIntoLab">Load Into Lab</button>
             </div>
         </div>
     </div>
@@ -360,6 +391,53 @@
     });
 
     // ---- delete module -------------------------------------------------
+    // Loading is destructive when a copy already exists, so the confirmation
+    // wording changes depending on whether one does. The row's badge is the
+    // signal - it is only rendered for modules currently in this lab.
+    $(document).on('click.modrepo', '.loadIntoLab', function () {
+        var row = $(this).closest('tr');
+        var moduleId = row.data('module-id');
+        var alreadyLoaded = row.find('.labLoadStatus').text().trim().length > 0;
+
+        $('#loadModuleId').val(moduleId);
+        $('#loadModuleName').text(row.data('module-name'));
+        $('#loadIntoLabTitle').text(alreadyLoaded ? 'Reload Module Into Your Lab' : 'Load Module Into Your Lab');
+        $('#btnConfirmLoadIntoLab').text(alreadyLoaded ? 'Replace Existing Copy' : 'Load Into Lab');
+        $('#loadReplaceWarning').toggleClass('d-none', !alreadyLoaded);
+
+        showModal('loadIntoLabModal');
+    });
+
+    $(document).on('click.modrepo', '#btnConfirmLoadIntoLab', function () {
+        var btn = $(this);
+        var moduleId = parseInt($('#loadModuleId').val()) || 0;
+        if (moduleId <= 0) return;
+
+        // Copying every chart is not instant, and a second click would run the
+        // whole load again, replacing the copy the first click had just made.
+        btn.prop('disabled', true).text('Loading...');
+
+        $.ajax({
+            url: '/module/loadintolab',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ ModuleId: moduleId }),
+            success: function (response) {
+                hideModal('loadIntoLabModal');
+                refreshList(response.resultMessage);
+            },
+            error: function (xhr) {
+                hideModal('loadIntoLabModal');
+                $('#lblModuleMessage')
+                    .text(xhr.responseText || 'The module could not be loaded.')
+                    .css('color', 'red');
+            },
+            complete: function () {
+                btn.prop('disabled', false).text('Load Into Lab');
+            }
+        });
+    });
+
     $(document).on('click.modrepo', '.deleteModule', function () {
         var row = $(this).closest('tr');
         $('#deleteModuleId').val(row.data('module-id'));

@@ -1,4 +1,4 @@
-using EMRSimulation.Application.Interfaces;
+﻿using EMRSimulation.Application.Interfaces;
 using EMRSimulation.Domain.Dtos;
 using System;
 using System.Collections.Generic;
@@ -73,5 +73,11 @@ namespace EMRSimulation.Application.Services
 
         public Task<IEnumerable<PatientDto>> GetPatientsByModuleAsync(int moduleId)
             => _moduleRepository.GetPatientsByModuleAsync(moduleId);
+
+        public Task<ModuleLoadResultDto?> LoadModuleIntoLabAsync(int moduleId, int labId)
+            => _moduleRepository.LoadModuleIntoLabAsync(moduleId, labId);
+
+        public Task<IEnumerable<LabModuleLoadDto>> GetLabModuleLoadsAsync(int labId)
+            => _moduleRepository.GetLabModuleLoadsAsync(labId);
     }
 }
