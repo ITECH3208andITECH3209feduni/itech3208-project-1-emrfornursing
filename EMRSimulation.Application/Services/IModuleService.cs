@@ -1,4 +1,4 @@
-using EMRSimulation.Domain.Dtos;
+﻿using EMRSimulation.Domain.Dtos;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -30,5 +30,14 @@ namespace EMRSimulation.Application.Services
         Task<IEnumerable<(string TableName, int RowsDeleted)>> DeleteModuleAsync(int moduleId);
 
         Task<IEnumerable<PatientDto>> GetPatientsByModuleAsync(int moduleId);
+
+        /// <summary>
+        /// Loads the module into a lab as a working copy. Replaces any previous
+        /// copy of the same module in the same lab, including anything students
+        /// wrote into it.
+        /// </summary>
+        Task<ModuleLoadResultDto?> LoadModuleIntoLabAsync(int moduleId, int labId);
+
+        Task<IEnumerable<LabModuleLoadDto>> GetLabModuleLoadsAsync(int labId);
     }
 }

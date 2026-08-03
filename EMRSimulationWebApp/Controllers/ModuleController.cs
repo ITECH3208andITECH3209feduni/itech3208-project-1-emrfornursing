@@ -1,4 +1,4 @@
-using EMRSimulation.Application.Services;
+﻿using EMRSimulation.Application.Services;
 using EMRSimulation.Domain.Dtos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -222,11 +222,94 @@ namespace EMRSimulationWebApp.Controllers
                 return StatusCode(500, "An error occurred while deleting the module. " + ex.Message);
             }
         }
+
+        /* ------------------------------------------------------------------
+           loading a module into a lab (Option B)
+           ------------------------------------------------------------------ */
+
+        /// <summary>
+        /// Copies the module into the caller's own campus lab, ready for class.
+        ///
+        /// The target lab comes from the signed-in supervisor's claim and is
+        /// never accepted from the request. Taking it from the client would let
+        /// one campus load a scenario over another campus's lab and delete their
+        /// students' work - the same class of mistake as trusting txtLabId at
+        /// write time, which caused the cross-campus leak earlier this sprint.
+        /// </summary>
+        [HttpPost]
+        public async Task<IActionResult> LoadIntoLab([FromBody] LoadIntoLabRequest request)
+        {
+            if (!IsSupervisor()) return Forbid();
+            if (request == null || request.ModuleId <= 0) return BadRequest("A module must be selected.");
+
+            var labId = CreatedBy();
+            if (labId == null || labId <= 0)
+                return BadRequest("Your login is not associated with a campus lab, so a module cannot be loaded.");
+
+            try
+            {
+                var result = await _moduleService.LoadModuleIntoLabAsync(request.ModuleId, labId.Value);
+
+                if (result == null)
+                    return StatusCode(500, "The module was not loaded. No result was returned.");
+
+                var message = result.WasReplaced
+                    ? "Module loaded. The previous copy in this lab was replaced, including anything students had written into it."
+                    : "Module loaded into your lab. It will now appear in the patient list.";
+
+                return Ok(new
+                {
+                    patientId    = result.PatientId,
+                    replaced     = result.WasReplaced,
+                    rowsRemoved  = result.RowsRemoved,
+                    resultMessage = message
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, "An error occurred while loading the module. " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Which modules are already sitting in the caller's lab. Used by the
+        /// repository screen to show when each was last loaded.
+        /// </summary>
+        public async Task<IActionResult> GetLabModuleLoads()
+        {
+            // Supervisor only. Naomi's student workflow is a normal patient list -
+            // students should not be told which patients are module copies, and it
+            // is not information they can act on.
+            if (!IsSupervisor()) return Ok(Array.Empty<object>());
+
+            var labId = CreatedBy();
+            if (labId == null || labId <= 0) return Ok(Array.Empty<object>());
+
+            var loads = await _moduleService.GetLabModuleLoadsAsync(labId.Value);
+
+            return Ok(loads.Select(l => new
+            {
+                moduleId    = l.ModuleId,
+                moduleName  = l.ModuleName,
+                patientId   = l.PatientId,
+                patientName = ($"{l.FirstName} {l.LastName}").Trim(),
+                loadedAt    = l.LoadedIntoLabAt
+            }));
+        }
     }
 
     /* ----------------------------------------------------------------------
        request / view models
        ---------------------------------------------------------------------- */
+
+    /// <summary>
+    /// Carries only the module. The lab is taken from the caller's claim, so it
+    /// is deliberately absent here - there is nothing for a client to set.
+    /// </summary>
+    public class LoadIntoLabRequest
+    {
+        public int ModuleId { get; set; }
+    }
 
     public class CopyModuleRequest
     {

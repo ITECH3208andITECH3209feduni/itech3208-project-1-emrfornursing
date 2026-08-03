@@ -1,4 +1,4 @@
-using EMRSimulation.Domain.Dtos;
+﻿using EMRSimulation.Domain.Dtos;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -38,5 +38,18 @@ namespace EMRSimulation.Application.Interfaces
 
         // ---- module contents ----
         Task<IEnumerable<PatientDto>> GetPatientsByModuleAsync(int moduleId);
+
+        // ---- loading a module into a lab (Option B) ----
+
+        /// <summary>
+        /// Copies the module's patient and every chart into <paramref name="labId"/>,
+        /// replacing any previous copy of the same module in the same lab.
+        /// Destroys student work in that previous copy by design - that is how a
+        /// scenario is reset between classes.
+        /// </summary>
+        Task<ModuleLoadResultDto?> LoadModuleIntoLabAsync(int moduleId, int labId);
+
+        /// <summary>Which modules are currently loaded into this lab, and when.</summary>
+        Task<IEnumerable<LabModuleLoadDto>> GetLabModuleLoadsAsync(int labId);
     }
 }
