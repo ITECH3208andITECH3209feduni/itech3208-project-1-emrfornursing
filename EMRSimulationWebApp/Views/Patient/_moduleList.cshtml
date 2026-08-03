@@ -1,4 +1,4 @@
-@*
+﻿@*
     Sprint 3, Requirement 1 - module table.
     Rendered on its own so the list can be refreshed by AJAX after a
     create / copy / rename / delete without reloading the whole page.
@@ -23,6 +23,7 @@
             <th></th>
             <th></th>
             <th></th>
+            <th></th>
         </tr>
     </thead>
     <tbody>
@@ -43,6 +44,9 @@
                     {
                         <div class="text-muted small">@m.Description</div>
                     }
+                    @* Filled in after render by the lab-loads lookup below. Empty
+                       unless this module is currently sitting in the caller's lab. *@
+                    <div class="small labLoadStatus" data-module-id="@m.Id"></div>
                 </td>
                 <td>@m.PatientCount</td>
                 <td>@((m.UpdatedDate ?? m.CreatedDate).ToString("yyyy-MM-dd"))</td>
@@ -55,6 +59,15 @@
                     {
                         <a href="javascript:void(0);" class="btn btn-primary btn-sm copyModule"
                            data-custom="@m.Id" style="background-color:#FF8A30;">Copy</a>
+                    }
+                </td>
+                <td>
+                    @if (canManage)
+                    {
+                        @* Loading replaces any previous copy in this lab, so the
+                           label changes to Reload once one exists. Set below. *@
+                        <a href="javascript:void(0);" class="btn btn-success btn-sm loadIntoLab"
+                           data-custom="@m.Id">Load into lab</a>
                     }
                 </td>
                 <td>
@@ -91,7 +104,38 @@
         },
         "columnDefs": [
             { "targets": [0], "visible": false },
-            { "targets": [6, 7, 8], "orderable": false }
+            { "targets": [6, 7, 8, 9], "orderable": false }
         ]
+    });
+
+    // Which of these modules already sit in this supervisor's lab. Runs on every
+    // render of the list, so the badges stay correct after a load or a refresh.
+    // Students get an empty array back, and the buttons are not rendered for them
+    // anyway, so this is a no-op on the student view.
+    $.ajax({
+        url: '/module/getlabmoduleloads',
+        method: 'GET',
+        success: function (loads) {
+            (loads || []).forEach(function (l) {
+                var status = $('.labLoadStatus[data-module-id="' + l.moduleId + '"]');
+                if (!status.length) return;
+
+                var when = l.loadedAt ? new Date(l.loadedAt) : null;
+                var whenText = when
+                    ? when.toLocaleDateString() + ' ' + when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    : 'earlier';
+
+                status.html('<span class="text-success">In your lab</span>' +
+                            '<span class="text-muted"> - loaded ' + whenText + '</span>');
+
+                $('.loadIntoLab[data-custom="' + l.moduleId + '"]')
+                    .text('Reload into lab')
+                    .removeClass('btn-success').addClass('btn-warning');
+            });
+        },
+        error: function (xhr) {
+            // Not worth interrupting the academic over; the badge is informational.
+            console.error('Could not read lab module loads:', xhr.status);
+        }
     });
 </script>
