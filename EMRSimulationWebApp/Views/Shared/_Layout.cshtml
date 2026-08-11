@@ -1,4 +1,4 @@
-
+﻿
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -181,8 +181,9 @@
                         </button>
 
                         <ul id="progressMenu" class="submenu">
-                            <li><a href="javascript:void(0);" class="load-patient-note" data-url="@Url.Action("GetProgressNoteList", "Patient")">Progress Note - List</a></li>
-                            <li><a href="javascript:void(0);" class="load-patient-addnote" data-url="@Url.Action("GetProgressNote", "Patient")">Progress Note - Add</a></li>
+                            @* One screen now: the form and the history sit side by side in
+                               _patientProgressNoteList.cshtml, so the separate Add entry has gone. *@
+                            <li><a href="javascript:void(0);" class="load-patient-note" data-url="@Url.Action("GetProgressNoteList", "Patient")">Progress Notes</a></li>
                         </ul>
 
                     </li>
@@ -506,22 +507,8 @@
             });
         });
 
-        $('.load-patient-addnote').on('click', function (e) {
-            e.preventDefault();
-            var pageUrl = $(this).data('url');
-
-            $.ajax({
-                url: pageUrl,
-                method: "GET",
-                success: function (response) {
-                    $('#content-area').html("");
-                    $('#content-area').html(response);
-                },
-                error: function (xhr, status, error) {
-                    console.error("Error loading the page:", error);
-                }
-            });
-        });
+        @* The .load-patient-addnote handler was removed with its menu entry. The
+           progress note form now lives in the combined list screen. *@
 
         $('.load-member-order').on('click', function (e) {
             e.preventDefault();
