@@ -23,10 +23,9 @@
                 <th>Consciousness</th>
                 <th>Total ADDS</th>
 
-                @if (User.HasClaim(c => c.Value == "student"))
-                {
-                    <th>Action</th>
-                }
+                @* Delete is available to both roles now. A supervisor preparing a module
+                   who mistypes an observation previously had no way to remove it. *@
+                <th>Action</th>
             </tr>
         </thead>
         <tbody>
@@ -108,12 +107,11 @@
                     <td>@patient.Consciousness</td>
                     <td>@patient.TotalScore</td>
 
-                    @if (User.HasClaim(c => c.Value == "student"))
-                    {
-                        <td>
-                            <a href="javascript:void(0);" class="btn btn-primary deleteAdds" data-custom="@patient.Id" style="background-color:#FF8A30;">Delete</a>
-                        </td>
-                    }
+                    <td>
+                        <a href="javascript:void(0);" class="btn btn-danger btn-sm deleteAdds"
+                           data-custom="@patient.Id"
+                           data-when="@(patient.EnteredDate?.ToString("dd-MMM-yyyy")) @patient.EnteredTime">Delete</a>
+                    </td>
                 </tr>
             }
         </tbody>
@@ -178,6 +176,11 @@
         $('#patientsAddsTable').on('click', '.deleteAdds', function() {
 
             var addsId = $(this).attr("data-custom");
+            var when = $(this).attr("data-when") || "this observation";
+
+            if (!window.confirm("Delete the ADDS observation recorded on " + when + "?\n\nThis cannot be undone.")) {
+                return;
+            }
 
             $.ajax({
                 type: "GET",
@@ -186,7 +189,9 @@
                 data: { Id: addsId },
                 success: function (response) {
                     if (response > 0) {
-                        alert("Patient ADDS record deleted successfully")
+                        // Inline message rather than alert(). A native alert blocks the
+                        // whole tab until dismissed, and nothing else in the app uses one.
+                        $('#lblMessage').text("ADDS observation deleted.").css('color', 'green');
 
                         $.ajax({
                             url: "/patient/getpatientaddslist",
