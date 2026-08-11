@@ -162,28 +162,33 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="loadIntoLabTitle">Load Module Into Your Lab</h5>
+                <h5 class="modal-title" id="loadIntoLabTitle">Load Module Into Labs</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="loadModuleId" value="0" />
-                <p>
-                    Load <strong id="loadModuleName"></strong> into your lab, ready for class?
+                <p class="mb-2">
+                    Load <strong id="loadModuleName"></strong> into the labs ticked below.
                 </p>
-                <p class="small mb-2">
-                    The patient and every chart are copied into your lab exactly as prepared.
-                    Students will see the patient in their normal patient list. The module
-                    itself is not changed, and other campuses are not affected.
+                <p class="small text-muted mb-3">
+                    The patient and every chart are copied into each lab exactly as prepared.
+                    Students see the patient in their normal patient list. The module itself is
+                    not changed.
                 </p>
-                <p class="text-danger small mb-0 d-none" id="loadReplaceWarning">
-                    This module is already in your lab. Loading it again replaces that copy
-                    and permanently deletes anything students have written into it. This is
-                    how a scenario is reset between classes, and it cannot be undone.
+
+                <div id="loadLabList" class="border rounded p-2" style="max-height:260px; overflow-y:auto;">
+                    <div class="text-muted small">Loading labs...</div>
+                </div>
+
+                <p class="text-danger small mb-0 mt-3 d-none" id="loadReplaceWarning">
+                    Labs marked <strong>already loaded</strong> will have their existing copy
+                    replaced, permanently deleting anything students have written into it. This
+                    is how a scenario is reset between classes, and it cannot be undone.
                 </p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-success" id="btnConfirmLoadIntoLab">Load Into Lab</button>
+                <button type="button" class="btn btn-success" id="btnConfirmLoadIntoLab">Load Into Labs</button>
             </div>
         </div>
     </div>
@@ -390,38 +395,98 @@
         });
     });
 
-    // ---- delete module -------------------------------------------------
-    // Loading is destructive when a copy already exists, so the confirmation
-    // wording changes depending on whether one does. The row's badge is the
-    // signal - it is only rendered for modules currently in this lab.
+    // ---- load a module into one or more labs ---------------------------
+    // The target labs come from this picker rather than the caller's own login,
+    // because academics prepare a scenario once and push it to every campus.
     $(document).on('click.modrepo', '.loadIntoLab', function () {
         var row = $(this).closest('tr');
         var moduleId = row.data('module-id');
-        var alreadyLoaded = row.find('.labLoadStatus').text().trim().length > 0;
 
         $('#loadModuleId').val(moduleId);
         $('#loadModuleName').text(row.data('module-name'));
-        $('#loadIntoLabTitle').text(alreadyLoaded ? 'Reload Module Into Your Lab' : 'Load Module Into Your Lab');
-        $('#btnConfirmLoadIntoLab').text(alreadyLoaded ? 'Replace Existing Copy' : 'Load Into Lab');
-        $('#loadReplaceWarning').toggleClass('d-none', !alreadyLoaded);
-
+        $('#loadReplaceWarning').addClass('d-none');
+        $('#loadLabList').html('<div class="text-muted small">Loading labs...</div>');
         showModal('loadIntoLabModal');
+
+        $.ajax({
+            url: '/module/getloadtargets',
+            method: 'GET',
+            data: { moduleId: moduleId },
+            success: function (labs) {
+                if (!labs || !labs.length) {
+                    $('#loadLabList').html('<div class="text-danger small">No active labs were found.</div>');
+                    return;
+                }
+
+                var html = labs.map(function (l) {
+                    var when = l.loadedAt ? new Date(l.loadedAt) : null;
+                    var whenText = when
+                        ? when.toLocaleDateString() + ' ' + when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                        : '';
+
+                    // Own lab ticked by default; other campuses are opt-in, so pushing
+                    // a scenario across campuses is always a deliberate act.
+                    var checked = l.isOwn ? ' checked' : '';
+                    var note = l.loaded
+                        ? '<span class="text-danger small"> - already loaded' + (whenText ? ' ' + whenText : '') + ', will be replaced</span>'
+                        : '';
+                    var own = l.isOwn ? '<span class="text-muted small"> - your lab</span>' : '';
+
+                    return '<div class="form-check">' +
+                           '<input class="form-check-input loadLabCheck" type="checkbox" value="' + l.labId +
+                           '" id="lab_' + l.labId + '" data-loaded="' + (l.loaded ? '1' : '0') + '"' + checked + ' />' +
+                           '<label class="form-check-label" for="lab_' + l.labId + '">' +
+                           $('<div>').text(l.labName || ('Lab ' + l.labId)).html() + own + note +
+                           '</label></div>';
+                }).join('');
+
+                $('#loadLabList').html(html);
+                updateLoadWarning();
+            },
+            error: function (xhr) {
+                $('#loadLabList').html('<div class="text-danger small">Could not load the lab list.</div>');
+                console.error('getloadtargets failed:', xhr.status);
+            }
+        });
     });
+
+    // The red warning only appears when a ticked lab would actually lose work.
+    function updateLoadWarning() {
+        var destructive = $('.loadLabCheck:checked').filter(function () {
+            return $(this).data('loaded') === 1 || $(this).data('loaded') === '1';
+        }).length;
+
+        $('#loadReplaceWarning').toggleClass('d-none', destructive === 0);
+        $('#btnConfirmLoadIntoLab').text(destructive > 0 ? 'Replace And Load' : 'Load Into Labs');
+    }
+
+    $(document).on('change.modrepo', '.loadLabCheck', updateLoadWarning);
 
     $(document).on('click.modrepo', '#btnConfirmLoadIntoLab', function () {
         var btn = $(this);
         var moduleId = parseInt($('#loadModuleId').val()) || 0;
         if (moduleId <= 0) return;
 
+        var labIds = $('.loadLabCheck:checked').map(function () {
+            return parseInt(this.value);
+        }).get();
+
+        if (!labIds.length) {
+            $('#loadLabList').before('<div class="text-danger small mb-2" id="noLabPicked">Choose at least one lab.</div>');
+            setTimeout(function () { $('#noLabPicked').remove(); }, 2500);
+            return;
+        }
+
         // Copying every chart is not instant, and a second click would run the
         // whole load again, replacing the copy the first click had just made.
+        var label = btn.text();
         btn.prop('disabled', true).text('Loading...');
 
         $.ajax({
             url: '/module/loadintolab',
             method: 'POST',
             contentType: 'application/json',
-            data: JSON.stringify({ ModuleId: moduleId }),
+            data: JSON.stringify({ ModuleId: moduleId, LabIds: labIds }),
             success: function (response) {
                 hideModal('loadIntoLabModal');
                 refreshList(response.resultMessage);
@@ -433,11 +498,12 @@
                     .css('color', 'red');
             },
             complete: function () {
-                btn.prop('disabled', false).text('Load Into Lab');
+                btn.prop('disabled', false).text(label);
             }
         });
     });
 
+    // ---- delete module -------------------------------------------------
     $(document).on('click.modrepo', '.deleteModule', function () {
         var row = $(this).closest('tr');
         $('#deleteModuleId').val(row.data('module-id'));
