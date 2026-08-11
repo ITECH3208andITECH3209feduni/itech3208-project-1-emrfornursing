@@ -49,5 +49,36 @@ namespace EMRSimulation.Infrastructure.Repositories
 
             return patient;
         }
+        public async Task<IEnumerable<LabDto>> GetLabsAsync(bool includeInactive = false)
+        {
+            var labs = new List<LabDto>();
+
+            using (var connection = await _dbConnectionFactory.CreateAsync())
+            using (var command = (SqlCommand)connection.CreateCommand())
+            {
+                command.CommandText = "GetLabs";
+                command.CommandType = CommandType.StoredProcedure;
+                command.Parameters.Add(new SqlParameter("@IncludeInactive", includeInactive));
+
+                using (var reader = await command.ExecuteReaderAsync())
+                {
+                    while (await reader.ReadAsync())
+                    {
+                        labs.Add(new LabDto
+                        {
+                            Id      = reader.GetInt32(reader.GetOrdinal("Id")),
+                            LabName = reader.IsDBNull(reader.GetOrdinal("LabName")) ? null : reader.GetString(reader.GetOrdinal("LabName")),
+                            // Lab.Active is a bit, so GetInt32 throws. Convert.ToBoolean
+                            // copes with either, in case the column type ever changes.
+                            Active  = !reader.IsDBNull(reader.GetOrdinal("Active"))
+                                      && Convert.ToBoolean(reader.GetValue(reader.GetOrdinal("Active")))
+                        });
+                    }
+                }
+            }
+
+            return labs;
+        }
+
     }
 }

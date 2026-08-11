@@ -10,5 +10,8 @@ namespace EMRSimulation.Domain.Dtos
     {
         public int Id { get; set; }
         public string LabName{ get; set; }
+
+        /// <summary>Inactive labs are hidden from the load picker.</summary>
+        public bool Active { get; set; }
     }
 }

@@ -21,5 +21,8 @@ namespace EMRSimulation.Application.Services
         {
             return await _LabRepository.GetLabById(Id);
         }
+        public Task<IEnumerable<LabDto>> GetLabsAsync(bool includeInactive = false)
+            => _LabRepository.GetLabsAsync(includeInactive);
+
     }
 }
