@@ -4,10 +4,6 @@ Group Members:
 
 Kunal Arora - 30432432 
 
-Mohammad Ibnul Shah - 30446211 
-
-Abhiraj Sahni - 30460122 
-
 Owen Gray- 300412725 
 
 Samuel Little - 30399549 
