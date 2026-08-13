@@ -8,6 +8,8 @@ Owen Gray- 300412725
 
 Samuel Little - 30399549 
 
+Fahim Faisal Al Nour 
+
 Description:
 
 This project continues the development of a custom Electronic Medical Record (EMR) simulator used in undergraduate nursing education. 
