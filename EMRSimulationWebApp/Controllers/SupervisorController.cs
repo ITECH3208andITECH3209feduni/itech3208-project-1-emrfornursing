@@ -226,6 +226,19 @@ namespace EMRSimulationWebApp.Controllers
                 return BadRequest("Patient data is required.");
             }
 
+            // Sprint 3 guard. LabId 0 means the supervisor is in module mode. The
+            // InsertPatient procedure has no @ModuleId, so a row created here would
+            // land with LabId 0 and ModuleId NULL - belonging to no campus and no
+            // module, and therefore invisible in every list. Naomi's brief describes
+            // one patient per laboratory scenario, and InsertModule already creates
+            // that patient, so there is nothing legitimate to add here.
+            if (addsDto.Id == 0 && addsDto.LabId <= 0)
+            {
+                return BadRequest(
+                    "A module already contains its patient. Open the module and edit " +
+                    "the existing patient record instead of adding a new one.");
+            }
+
             try
             {
                 var newId = await _patientService.AddPatientAsync(addsDto);
@@ -240,6 +253,17 @@ namespace EMRSimulationWebApp.Controllers
 
         public async Task<IActionResult> DeletePatient(int labId, int Id)
         {
+            // Sprint 3 guard. A module owns exactly one patient, and that patient is
+            // the module's entire EMR structure. Deleting it would leave a module that
+            // renders an empty list and can never be repopulated. Removing the module
+            // is the supported route - DeleteModule cascades the patient and charts.
+            if (labId <= 0)
+            {
+                return BadRequest(
+                    "This patient belongs to a module and cannot be deleted on its own. " +
+                    "Use Delete on the module in the Module Repository instead.");
+            }
+
             int result = await _patientService.DeletePatientAsync(labId, Id);
             return Ok(result);
         }

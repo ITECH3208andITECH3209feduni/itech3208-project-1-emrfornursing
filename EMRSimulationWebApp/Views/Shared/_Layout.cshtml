@@ -1,4 +1,4 @@
-
+﻿
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -56,6 +56,16 @@
                     <li class="nav-item">
                         <a href="javascript:void(0);" class="nav-link text-light load-patient-list" data-url="@Url.Action("GetPatientList", "Patient")">Patient List</a>
                     </li>
+
+                    @* Sprint 3 - students select their year level and module here.
+                       The supervisor entry lives under Settings; this one is the
+                       read-only route for the student role. *@
+                    @if (!User.HasClaim(c => c.Value == "supervisor"))
+                    {
+                        <li class="nav-item">
+                            <a href="javascript:void(0);" class="nav-link text-light load-module-repository" data-url="@Url.Action("GetModuleRepository", "Module")">Module Repository</a>
+                        </li>
+                    }
 
                     <li id="togglePolicyMenu">
                         <button id="togglePolicy" class="menu-btn" type="button">
@@ -171,8 +181,9 @@
                         </button>
 
                         <ul id="progressMenu" class="submenu">
-                            <li><a href="javascript:void(0);" class="load-patient-note" data-url="@Url.Action("GetProgressNoteList", "Patient")">Progress Note - List</a></li>
-                            <li><a href="javascript:void(0);" class="load-patient-addnote" data-url="@Url.Action("GetProgressNote", "Patient")">Progress Note - Add</a></li>
+                            @* One screen now: the form and the history sit side by side in
+                               _patientProgressNoteList.cshtml, so the separate Add entry has gone. *@
+                            <li><a href="javascript:void(0);" class="load-patient-note" data-url="@Url.Action("GetProgressNoteList", "Patient")">Progress Notes</a></li>
                         </ul>
 
                     </li>
@@ -201,6 +212,7 @@
                             </button>
 
                             <ul id="settingsMenu" class="submenu">
+                                <li><a href="javascript:void(0);" class="load-module-repository" data-url="@Url.Action("GetModuleRepository", "Module")">Module Repository</a></li>
                                 <li><a href="javascript:void(0);" class="load-add-patient" data-url="@Url.Action("GetPatient", "Supervisor")">Add Patient</a></li>
                                 <li><a href="javascript:void(0);" class="load-add-medication" data-url="@Url.Action("GetMedication", "Supervisor")">Add Medication Name</a></li>
                                 <li><a href="javascript:void(0);" class="load-supervisor-patient" data-url="@Url.Action("GetSupervisorPatientList", "Supervisor")">Clear Student Data</a></li>
@@ -495,22 +507,8 @@
             });
         });
 
-        $('.load-patient-addnote').on('click', function (e) {
-            e.preventDefault();
-            var pageUrl = $(this).data('url');
-
-            $.ajax({
-                url: pageUrl,
-                method: "GET",
-                success: function (response) {
-                    $('#content-area').html("");
-                    $('#content-area').html(response);
-                },
-                error: function (xhr, status, error) {
-                    console.error("Error loading the page:", error);
-                }
-            });
-        });
+        @* The .load-patient-addnote handler was removed with its menu entry. The
+           progress note form now lives in the combined list screen. *@
 
         $('.load-member-order').on('click', function (e) {
             e.preventDefault();
@@ -600,6 +598,86 @@
                 },
                 error: function (xhr, status, error) {
                     console.error("Error loading the page:", error);
+                }
+            });
+        });
+
+        // Sprint 3 - remember the signed-in campus so module browsing can be
+        // reversed. Opening a module sets #txtLabId to 0 to put the shared chart
+        // screens into module mode; without restoring it afterwards every
+        // lab-scoped screen would keep querying labId 0 until a full page reload.
+        window.__emrLabId = $('#txtLabId').val();
+
+        // CAPTURE phase, deliberately. Every menu handler in this file is bound
+        // directly on its own <a>, so they run at the target phase - before any
+        // delegated listener on an ancestor. A bubble-phase restore would fire
+        // AFTER those handlers had already sent their AJAX with labId still 0,
+        // and labId 0 means "no lab filter": the supervisor would momentarily
+        // see every patient in every campus. Capture runs first, so the campus
+        // id is back in place before anything reads it.
+        (function () {
+            var sidebar = document.getElementById('appSidebar');
+            if (!sidebar) return;
+
+            // Only these destinations leave module context. Everything else in the
+            // sidebar - the flow sheet, progress note and patient use case menus -
+            // operates on the CURRENTLY SELECTED patient, which may be a module
+            // patient. Restoring the campus id for those would write module charts
+            // into a campus with LabId 13 instead of 0.
+            var LEAVES_MODULE_CONTEXT = [
+                'load-patient-list',        // back to this campus's patients
+                'load-add-patient',
+                'load-add-medication',
+                'load-supervisor-patient',  // clear student data (campus scoped)
+                'load-supervisor-lab',      // clear lab data (campus scoped)
+                'load-hospital-policies'    // policies are stored per campus
+            ];
+
+            sidebar.addEventListener('click', function (e) {
+                var link = e.target && e.target.closest ? e.target.closest('a') : null;
+                if (!link || !sidebar.contains(link)) return;
+
+                var leaving = LEAVES_MODULE_CONTEXT.some(function (c) {
+                    return link.classList.contains(c);
+                });
+                if (!leaving) return;
+
+                var labIdField = document.getElementById('txtLabId');
+                if (labIdField && labIdField.value === '0' &&
+                    window.__emrLabId && window.__emrLabId !== '0') {
+                    labIdField.value = window.__emrLabId;
+
+                    // Drop the module patient too. Campus id plus a module patient id
+                    // is the combination that would corrupt data, so never leave it set.
+                    var patientIdField = document.getElementById('txtPatientId');
+                    if (patientIdField) patientIdField.value = '';
+                }
+            }, true);
+        })();
+
+        // Sprint 3 - global module repository. Deliberately sends no labId:
+        // modules are shared across every campus Supervisor login.
+        $('.load-module-repository').on('click', function (e) {
+            e.preventDefault();
+            $("#toggleRecordMenu").hide();
+            $("#toggleProgressMenu").hide();
+            $("#togglePatientUsecaseMenu").hide();
+
+            $('#txtPatientId').val("");
+            updateRiskmanVisibility();
+
+            var pageUrl = $(this).data('url');
+
+            $.ajax({
+                url: pageUrl,
+                method: "GET",
+                success: function (response) {
+                    $('#content-area').html("");
+                    $('#patient-header').html("");
+                    $('#content-area').html(response);
+                },
+                error: function (xhr, status, error) {
+                    console.error("Error loading the module repository:", error);
                 }
             });
         });

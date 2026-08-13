@@ -79,6 +79,7 @@ namespace EMRSimulation.Application.Services
 
         public Task<int> AddProgressNotesAsync(ProgressNotesDto addsDto) => _patientRepository.AddProgressNotesAsync(addsDto);
         public Task<IEnumerable<ProgressNotesDto>> GetProgressNotesAsync(int labId, int patientId) => _patientRepository.GetProgressNotesAsync(labId, patientId);
+        public Task<ProgressNotesDto?> GetProgressNoteByIdAsync(int id) => _patientRepository.GetProgressNoteByIdAsync(id);
         public Task<int> DeleteProgressNotesAsync(int id) => _patientRepository.DeleteProgressNotesAsync(id);
 
         public Task<int> AddFoodIntakeAsync(FoodIntakeDto dto) => _patientRepository.AddFoodIntakeAsync(dto);

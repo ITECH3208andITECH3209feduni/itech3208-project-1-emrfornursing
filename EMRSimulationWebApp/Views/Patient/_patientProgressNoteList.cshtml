@@ -1,161 +1,659 @@
-﻿@{
-    ViewData["Title"] = "Patient List";
-}
-@using EMRSimulation.Domain.Dtos;
+﻿@using EMRSimulation.Domain.Dtos
 @model IEnumerable<ProgressNotesDto>
 
-<div class="form-group row mb-1" style="background-color: black;color: white;">
-    <div class="col-sm-7">
-        <label class="col-sm-5 col-form-label">PROGRESS NOTES</label>
+@{
+    var notes = Model?.ToList() ?? new List<ProgressNotesDto>();
+    var currentRole = User.HasClaim(c => c.Value == "supervisor")
+        ? "supervisor"
+        : "student";
+}
+
+<style>
+    #progressNotesPage {
+        padding: 18px 10px 30px;
+    }
+
+    #progressNotesPage .progress-title {
+        margin: 0 0 4px;
+        font-size: 26px;
+        font-weight: 700;
+    }
+
+    #progressNotesPage .progress-subtitle {
+        margin: 0 0 18px;
+        color: #666;
+    }
+
+    #progressNotesPage .progress-layout {
+        display: grid;
+        grid-template-columns: minmax(300px, 0.85fr) minmax(420px, 1.35fr);
+        gap: 24px;
+        align-items: start;
+    }
+
+    #progressNotesPage .progress-panel {
+        border: 1px solid #9a9a9a;
+        background: #fff;
+        padding: 22px;
+    }
+
+    #progressNotesPage .panel-title {
+        margin: 0 0 18px;
+        font-size: 21px;
+        font-weight: 700;
+    }
+
+    #progressNotesPage .date-time-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+    }
+
+    #progressNotesPage .field-group {
+        margin-bottom: 17px;
+    }
+
+    #progressNotesPage .field-group label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 600;
+    }
+
+    #progressNotesPage input,
+    #progressNotesPage textarea,
+    #progressNotesPage select {
+        width: 100%;
+        min-height: 42px;
+        border: 1px solid #555;
+        border-radius: 0;
+        padding: 8px 10px;
+        background: #fff;
+        font-size: 16px;
+    }
+
+    #progressNotesPage textarea {
+        min-height: 190px;
+        resize: vertical;
+        white-space: pre-wrap;
+    }
+
+    #progressNotesPage .counter-row {
+        margin-top: 5px;
+        text-align: right;
+        color: #666;
+        font-size: 13px;
+    }
+
+    #progressNotesPage .form-actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-top: 20px;
+    }
+
+    #progressNotesPage .progress-btn {
+        min-width: 120px;
+        min-height: 42px;
+        border: 1px solid #222;
+        padding: 8px 18px;
+        cursor: pointer;
+        font-weight: 600;
+    }
+
+    #progressNotesPage .progress-btn-primary {
+        background: #202428;
+        color: #fff;
+    }
+
+    #progressNotesPage .progress-btn-secondary {
+        background: #fff;
+        color: #222;
+    }
+
+    #progressNotesPage .history-tools {
+        display: grid;
+        grid-template-columns: minmax(220px, 1fr) 210px;
+        gap: 18px;
+        margin-bottom: 18px;
+    }
+
+    #progressNotesPage .history-list {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    #progressNotesPage .note-card {
+        display: grid;
+        grid-template-columns: 120px minmax(0, 1fr) auto;
+        gap: 18px;
+        align-items: start;
+        border: 1px solid #333;
+        padding: 16px;
+        background: #fff;
+    }
+
+    #progressNotesPage .note-date {
+        padding-right: 15px;
+        border-right: 1px solid #333;
+        font-weight: 600;
+        line-height: 1.35;
+    }
+
+    #progressNotesPage .note-time {
+        display: block;
+        margin-top: 6px;
+        color: #555;
+        font-weight: 400;
+    }
+
+    #progressNotesPage .note-text {
+        margin: 0;
+        overflow-wrap: anywhere;
+        white-space: pre-wrap;
+    }
+
+    #progressNotesPage .note-meta {
+        margin-top: 10px;
+        color: #666;
+        font-size: 13px;
+    }
+
+    #progressNotesPage .edit-note-btn {
+        min-height: 38px;
+        border: 1px solid #1f5f9c;
+        background: #fff;
+        color: #1f5f9c;
+        padding: 7px 14px;
+        cursor: pointer;
+        font-weight: 600;
+    }
+
+    #progressNotesPage .delete-note-btn {
+        min-height: 38px;
+        margin-top: 8px;
+        border: 1px solid #b44949;
+        background: #fff;
+        color: #b44949;
+        padding: 7px 14px;
+        cursor: pointer;
+        font-weight: 600;
+    }
+
+    #progressNotesPage .empty-history {
+        border: 1px dashed #999;
+        padding: 26px;
+        text-align: center;
+        color: #666;
+    }
+
+    #progressNotesPage .progress-message {
+        display: none;
+        margin-top: 15px;
+        padding: 10px 12px;
+        border: 1px solid transparent;
+    }
+
+    #progressNotesPage .message-success {
+        display: block;
+        border-color: #4d8b57;
+        background: #edf7ef;
+        color: #235b2c;
+    }
+
+    #progressNotesPage .message-error {
+        display: block;
+        border-color: #b44949;
+        background: #fff0f0;
+        color: #842525;
+    }
+
+    #progressNotesPage .progress-note-help {
+        margin-top: 18px;
+        color: #666;
+        text-align: center;
+        font-size: 13px;
+    }
+
+    @@media (max-width: 980px) {
+        #progressNotesPage .progress-layout {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @@media (max-width: 650px) {
+        #progressNotesPage .date-time-grid,
+        #progressNotesPage .history-tools {
+            grid-template-columns: 1fr;
+        }
+
+        #progressNotesPage .note-card {
+            grid-template-columns: 1fr;
+        }
+
+        #progressNotesPage .note-date {
+            border-right: 0;
+            border-bottom: 1px solid #aaa;
+            padding: 0 0 10px;
+        }
+    }
+</style>
+
+<div id="progressNotesPage">
+    <h2 class="progress-title">Progress Notes</h2>
+    <p class="progress-subtitle">Create, edit and review patient progress notes.</p>
+
+    <div class="progress-layout">
+        <section class="progress-panel" aria-labelledby="progressNoteFormTitle">
+            <h3 id="progressNoteFormTitle" class="panel-title">New Progress Note</h3>
+
+            <input type="hidden" id="progressNoteId" value="0" />
+
+            <div class="date-time-grid">
+                <div class="field-group">
+                    <label for="progressNoteDate">Date</label>
+                    <input type="date" id="progressNoteDate" />
+                </div>
+                <div class="field-group">
+                    <label for="progressNoteTime">Time</label>
+                    <input type="time" id="progressNoteTime" />
+                </div>
+            </div>
+
+            <div class="field-group">
+                <label for="progressNoteText">Progress Note</label>
+                <textarea id="progressNoteText" maxlength="2000" placeholder="Enter progress note..."></textarea>
+                <div class="counter-row">
+                    <span id="progressNoteCharacterCount">0</span> / 2000 characters
+                </div>
+            </div>
+
+            <div class="field-group">
+                <label for="progressNoteSign">Signature / Initials</label>
+                <input type="text" id="progressNoteSign" maxlength="50" autocomplete="off" />
+            </div>
+
+            <div class="form-actions">
+                <button type="button" id="saveProgressNoteButton" class="progress-btn progress-btn-primary">
+                    Save Note
+                </button>
+                <button type="button" id="clearProgressNoteButton" class="progress-btn progress-btn-secondary">
+                    Clear
+                </button>
+            </div>
+
+            <div id="progressNoteMessage" class="progress-message" role="status" aria-live="polite"></div>
+        </section>
+
+        <section class="progress-panel" aria-labelledby="progressNoteHistoryTitle">
+            <h3 id="progressNoteHistoryTitle" class="panel-title">Progress Note History</h3>
+
+            <div class="history-tools">
+                <div>
+                    <label class="visually-hidden" for="progressNoteSearch">Search notes</label>
+                    <input type="search" id="progressNoteSearch" placeholder="Search notes..." autocomplete="off" />
+                </div>
+                <div>
+                    <label class="visually-hidden" for="progressNoteSort">Sort notes</label>
+                    <select id="progressNoteSort">
+                        <option value="newest">Sort: Newest first</option>
+                        <option value="oldest">Sort: Oldest first</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="progressNoteHistoryList" class="history-list">
+                @foreach (var note in notes)
+                {
+                    var noteDate = note.NotesDate;
+                    var timestamp = noteDate.HasValue
+                        ? new DateTimeOffset(noteDate.Value).ToUnixTimeSeconds()
+                        : 0;
+                    // Same role that wrote it. Notes saved before NotesFrom was recorded
+                    // have no author, so only a supervisor may tidy those up.
+                    var canEdit = string.Equals(note.NotesFrom, currentRole, StringComparison.OrdinalIgnoreCase)
+                        || (currentRole == "supervisor" && string.IsNullOrWhiteSpace(note.NotesFrom));
+
+                    // Naomi asked for delete to be removed from the student login only.
+                    var canDelete = currentRole == "supervisor" && canEdit;
+
+                    <article class="note-card" data-note-timestamp="@timestamp" data-note-id="@note.Id">
+                        <div class="note-date">
+                            @if (noteDate.HasValue)
+                            {
+                                @noteDate.Value.ToString("dd MMMM yyyy")
+                                <span class="note-time">@noteDate.Value.ToString("hh:mm tt")</span>
+                            }
+                            else
+                            {
+                                <span>Date unavailable</span>
+                            }
+                        </div>
+
+                        <div class="note-content">
+                            <p class="note-text">@note.Notes</p>
+                            <div class="note-meta">
+                                Signature: @note.Sign
+                                @if (!string.IsNullOrWhiteSpace(note.NotesFrom))
+                                {
+                                    <span> | Entered by: @note.NotesFrom</span>
+                                }
+                            </div>
+
+                            <textarea class="stored-note-text" hidden>@note.Notes</textarea>
+                            <input class="stored-note-sign" type="hidden" value="@note.Sign" />
+                            <input class="stored-note-date" type="hidden" value="@(noteDate?.ToString("yyyy-MM-dd") ?? string.Empty)" />
+                            <input class="stored-note-time" type="hidden" value="@(noteDate?.ToString("HH:mm") ?? string.Empty)" />
+                        </div>
+
+                        <div>
+                            @if (canEdit)
+                            {
+                                <button type="button" class="edit-note-btn">Edit</button>
+                            }
+                            @if (canDelete)
+                            {
+                                <button type="button" class="delete-note-btn">Delete</button>
+                            }
+                        </div>
+                    </article>
+                }
+
+                @if (!notes.Any())
+                {
+                    <div id="progressNotesEmptyState" class="empty-history">
+                        No progress notes have been saved for this patient.
+                    </div>
+                }
+            </div>
+
+            <div id="progressNotesNoSearchResults" class="empty-history" style="display:none; margin-top:16px;">
+                No progress notes match your search.
+            </div>
+        </section>
     </div>
-</div>
-<div class="text-left">
-    <table id="patientsProgressNoteTable" class="display">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Notes</th>
-                <th>&nbsp;</th>
-                <th>Sign</th>
-                <th>Notes Date</th>
-                <th>Action</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var patient in Model)
-            {
-                <tr>
-                    <td>@patient.Id</td>
-                    <td>
-                        @if (!string.IsNullOrEmpty(patient.Notes) && patient.Notes.Length > 50)
-                        {
-                            <span class="truncated-text">@patient.Notes.Substring(0, 70)...</span>                            
-                        }
-                        else
-                        {
-                            <span>@patient.Notes</span>
-                        }
-                    </td>
-                    <td><a href="#" class="read-more" data-bs-toggle="modal" data-bs-target="#notesModal" data-fulltext="@patient.Notes">Read More</a></td>
-                    <td>@patient.Sign</td>
-                    <td>@patient.NotesDate</td>
 
-                    <td>
-                    @if (User.HasClaim(c => c.Value == "student"))
-                    {
-                        if(patient.NotesFrom == "student")
-                        {
-                        
-                            <a href="javascript:void(0);" class="btn btn-primary deleteProgressNote" data-custom="@patient.Id" style="background-color:#FF8A30;">Delete</a>
-                        
-                        }
-                    }
-                    else if (User.HasClaim(c => c.Value == "supervisor"))
-                    {
-                        if (patient.NotesFrom == "supervisor")
-                        {
-                        
-                                <a href="javascript:void(0);" class="btn btn-primary deleteProgressNote" data-custom="@patient.Id" style="background-color:#FF8A30;">Delete</a>
-                        
-                        }
-                    }
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
-</div>
-<div>
-    <label id="lblMessage" style="color:green"></label>
-</div>
-
-<div class="modal fade" id="notesModal" tabindex="-1" role="dialog" aria-labelledby="notesModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="notesModalLabel">Full Notes</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body" style="word-wrap: break-word; white-space: pre-line;">
-                <!-- Full text will be dynamically added here -->
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" style="background-color:black" data-bs-dismiss="modal">Close</button>
-            </div>
-        </div>
+    <div class="progress-note-help">
+        Notes can be edited by the same role that created them. Delete is available to a Supervisor login only.
     </div>
 </div>
 
 <script>
-    var LabId = null;
-    var PatientId = null;
+    (function () {
+        const page = document.getElementById('progressNotesPage');
+        if (!page) {
+            return;
+        }
 
-    $(document).ready(function () {
-        var table = $('#patientsProgressNoteTable').DataTable({
-            "paging": true, // Remove paging control
-            "info": false, // Remove "Showing 1 to X" information
-            "searching": false, // Remove search box
-            "ordering": false, // Enable column ordering (if needed)
-            "autoWidth": false, // Prevent auto width
-            "lengthChange": false,  // Hide the entries per page dropdown
-            // "pageLength": 3,  // Set the default number of entries per page (optional)
-            "columnDefs": [
-                {
-                    "targets": [0],
-                    "visible": false
-                } // Disable sorting for the action column
-            ]
-        });
+        const idInput = page.querySelector('#progressNoteId');
+        const dateInput = page.querySelector('#progressNoteDate');
+        const timeInput = page.querySelector('#progressNoteTime');
+        const noteInput = page.querySelector('#progressNoteText');
+        const signInput = page.querySelector('#progressNoteSign');
+        const countOutput = page.querySelector('#progressNoteCharacterCount');
+        const saveButton = page.querySelector('#saveProgressNoteButton');
+        const clearButton = page.querySelector('#clearProgressNoteButton');
+        const message = page.querySelector('#progressNoteMessage');
+        const formTitle = page.querySelector('#progressNoteFormTitle');
+        const searchInput = page.querySelector('#progressNoteSearch');
+        const sortInput = page.querySelector('#progressNoteSort');
+        const historyList = page.querySelector('#progressNoteHistoryList');
+        const noSearchResults = page.querySelector('#progressNotesNoSearchResults');
 
-        $('#patientsProgressNoteTable').on('click', '.read-more', function() {
-            var fullText = $(this).attr('data-fulltext');
-            $('#notesModal .modal-body').text(fullText);
-        });
+        function pad(value) {
+            return String(value).padStart(2, '0');
+        }
 
-        LabId = $('#txtLabId').val();
-        PatientId = $('#txtPatientId').val();
+        function setCurrentDateTime() {
+            const now = new Date();
+            dateInput.value = [
+                now.getFullYear(),
+                pad(now.getMonth() + 1),
+                pad(now.getDate())
+            ].join('-');
+            timeInput.value = pad(now.getHours()) + ':' + pad(now.getMinutes());
+        }
 
-        $('#patientsProgressNoteTable').on('click', '.deleteProgressNote', function() {
+        function updateCharacterCount() {
+            countOutput.textContent = String(noteInput.value.length);
+        }
 
-            var addsId = $(this).attr("data-custom");
+        function showMessage(text, isSuccess) {
+            message.textContent = text;
+            message.className = isSuccess
+                ? 'progress-message message-success'
+                : 'progress-message message-error';
+        }
+
+        function clearMessage() {
+            message.textContent = '';
+            message.className = 'progress-message';
+        }
+
+        function resetForm() {
+            idInput.value = '0';
+            noteInput.value = '';
+            signInput.value = '';
+            formTitle.textContent = 'New Progress Note';
+            saveButton.textContent = 'Save Note';
+            setCurrentDateTime();
+            updateCharacterCount();
+            clearMessage();
+        }
+
+        function loadProgressNotesPage(successMessage) {
+            const labId = Number.parseInt($('#txtLabId').val(), 10);
+            const patientId = Number.parseInt($('#txtPatientId').val(), 10);
 
             $.ajax({
-                type: "GET",
-                url: "/patient/deleteprogressnote",
-                contentType: "application/json",
-                data: { Id: addsId }, // Wrap Id in an object
+                url: '/patient/GetProgressNoteList',
+                method: 'GET',
+                data: { labId: labId, patientId: patientId },
                 success: function (response) {
-                    if (response > 0) {
-
-                        alert("Progress Note record deleted successfully")
-
-                        $.ajax({
-                            url: "/patient/GetProgressNoteList",
-                            method: "GET",
-                            data: { labId: LabId, patientId: PatientId }, // Wrap Id in an object
-                            success: function (response) {
-                                // Load the response into the right-side content area
-                                $('#content-area').html("");
-                                $('#content-area').html(response);
-                            },
-                            error: function (xhr, status, error) {
-                                console.error("Error loading the page:", error);
-                            }
-                        });
-
-                    } else {
-                        $('#lblMessage').text("Error").css('color', 'red');
+                    $('#content-area').html(response);
+                    if (successMessage) {
+                        const newMessage = document.querySelector('#progressNoteMessage');
+                        if (newMessage) {
+                            newMessage.textContent = successMessage;
+                            newMessage.className = 'progress-message message-success';
+                        }
                     }
-                
-
-                    console.log("Success:", response);
                 },
-                error: function (jqXHR, textStatus, errorThrown) {
-                    console.log("Error:", textStatus);
+                error: function (xhr) {
+                    showMessage(xhr.responseText || 'Unable to reload progress notes.', false);
+                }
+            });
+        }
+
+        function filterNotes() {
+            const query = searchInput.value.trim().toLowerCase();
+            const cards = Array.from(historyList.querySelectorAll('.note-card'));
+            let visibleCount = 0;
+
+            cards.forEach(function (card) {
+                const searchableText = card.textContent.toLowerCase();
+                const shouldShow = query === '' || searchableText.includes(query);
+                card.style.display = shouldShow ? '' : 'none';
+                if (shouldShow) {
+                    visibleCount += 1;
+                }
+            });
+
+            noSearchResults.style.display = cards.length > 0 && visibleCount === 0
+                ? 'block'
+                : 'none';
+        }
+
+        function sortNotes() {
+            const cards = Array.from(historyList.querySelectorAll('.note-card'));
+            const direction = sortInput.value === 'oldest' ? 1 : -1;
+
+            cards.sort(function (first, second) {
+                const firstTime = Number(first.dataset.noteTimestamp || 0);
+                const secondTime = Number(second.dataset.noteTimestamp || 0);
+                return (firstTime - secondTime) * direction;
+            });
+
+            cards.forEach(function (card) {
+                historyList.appendChild(card);
+            });
+
+            filterNotes();
+        }
+
+        noteInput.addEventListener('input', updateCharacterCount);
+
+        clearButton.addEventListener('click', function () {
+            resetForm();
+        });
+
+        searchInput.addEventListener('input', filterNotes);
+        sortInput.addEventListener('change', sortNotes);
+
+        historyList.addEventListener('click', function (event) {
+            const editButton = event.target.closest('.edit-note-btn');
+            if (!editButton) {
+                return;
+            }
+
+            const card = editButton.closest('.note-card');
+            idInput.value = card.dataset.noteId || '0';
+            noteInput.value = card.querySelector('.stored-note-text').value;
+            signInput.value = card.querySelector('.stored-note-sign').value;
+            dateInput.value = card.querySelector('.stored-note-date').value;
+            timeInput.value = card.querySelector('.stored-note-time').value;
+
+            formTitle.textContent = 'Edit Progress Note';
+            saveButton.textContent = 'Update Note';
+            updateCharacterCount();
+            clearMessage();
+            page.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            noteInput.focus();
+        });
+
+        // Delete. Supervisor only, and the server checks the note's author again -
+        // hiding the button does not remove the capability on its own.
+        page.addEventListener('click', function (event) {
+            const deleteButton = event.target.closest('.delete-note-btn');
+            if (!deleteButton) {
+                return;
+            }
+
+            const card = deleteButton.closest('.note-card');
+            const noteId = card.dataset.noteId;
+            const when = card.querySelector('.note-date').innerText.trim().replace(/\s+/g, ' ');
+
+            if (!window.confirm('Delete the progress note from ' + when + '?\n\nThis cannot be undone.')) {
+                return;
+            }
+
+            deleteButton.disabled = true;
+            deleteButton.textContent = 'Deleting...';
+
+            $.ajax({
+                type: 'GET',
+                url: '/patient/deleteprogressnote',
+                data: { Id: noteId },
+                success: function () {
+                    loadProgressNotesPage('Progress note deleted.');
+                },
+                error: function (xhr) {
+                    deleteButton.disabled = false;
+                    deleteButton.textContent = 'Delete';
+                    showMessage(
+                        xhr.status === 403
+                            ? 'You can only delete notes written from your own login.'
+                            : 'The progress note could not be deleted.',
+                        false
+                    );
                 }
             });
         });
-    });
-    
 
+        saveButton.addEventListener('click', function () {
+            clearMessage();
+
+            const labId = Number.parseInt($('#txtLabId').val(), 10);
+            const patientId = Number.parseInt($('#txtPatientId').val(), 10);
+            const noteText = noteInput.value.trim();
+            const signature = signInput.value.trim();
+
+            if (!labId || !patientId) {
+                showMessage('Please select a patient before saving a progress note.', false);
+                return;
+            }
+
+            if (!dateInput.value || !timeInput.value) {
+                showMessage('Date and time are required.', false);
+                return;
+            }
+
+            if (!noteText) {
+                showMessage('Progress Note is required.', false);
+                noteInput.focus();
+                return;
+            }
+
+            if (noteText.length > 2000) {
+                showMessage('Progress Note cannot exceed 2000 characters.', false);
+                noteInput.focus();
+                return;
+            }
+
+            if (!signature) {
+                showMessage('Signature or initials are required.', false);
+                signInput.focus();
+                return;
+            }
+
+            const payload = {
+                Id: Number.parseInt(idInput.value, 10) || 0,
+                LabId: labId,
+                PatientId: patientId,
+                NotesDate: dateInput.value + 'T' + timeInput.value + ':00',
+                Notes: noteText,
+                Sign: signature
+            };
+
+            saveButton.disabled = true;
+            saveButton.textContent = payload.Id > 0 ? 'Updating...' : 'Saving...';
+
+            $.ajax({
+                type: 'POST',
+                url: '/patient/addprogressnote',
+                contentType: 'application/json',
+                data: JSON.stringify(payload),
+                success: function (response) {
+                    if (response && response.success) {
+                        loadProgressNotesPage(response.message);
+                        return;
+                    }
+
+                    showMessage(
+                        response && response.message
+                            ? response.message
+                            : 'Unable to save the progress note.',
+                        false
+                    );
+                    saveButton.disabled = false;
+                    saveButton.textContent = payload.Id > 0 ? 'Update Note' : 'Save Note';
+                },
+                error: function (xhr) {
+                    const response = xhr.responseJSON;
+                    showMessage(
+                        response && response.message
+                            ? response.message
+                            : 'Unable to save the progress note.',
+                        false
+                    );
+                    saveButton.disabled = false;
+                    saveButton.textContent = payload.Id > 0 ? 'Update Note' : 'Save Note';
+                }
+            });
+        });
+
+        setCurrentDateTime();
+        updateCharacterCount();
+        sortNotes();
+    })();
 </script>

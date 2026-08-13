@@ -19,6 +19,11 @@ namespace EMRSimulation.Domain.Dtos
         public string? Consciousness { get; set; }
         public string? OxygenSaturation { get; set; }
         public string? OxygenFlow { get; set; }
+
+        // Room Air (RA), Intra Nasal Cannula (INC) or Hudson Mask (HM).
+        // Nullable because observations recorded before Sprint 3 have no value.
+        public string? ModeOfDelivery { get; set; }
+
         public string? BloodPressure { get; set; }
         public string? BloodPressureDiastolic { get; set; }
 

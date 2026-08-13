@@ -1,4 +1,4 @@
-using EMRSimulation.Application.Services;
+﻿using EMRSimulation.Application.Services;
 using EMRSimulation.Domain.Dtos;
 using EMRSimulationWebApp.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -453,14 +453,49 @@ namespace EMRSimulation.WebApp.Controllers
             return PartialView("~/views/patient/_patientProgressNoteList.cshtml", lstPatients);
         }
 
-        public async Task<IActionResult> GetProgressNote()
+        // id = 0 is "write a new note". A non-zero id loads that note for editing,
+        // which is what the Edit button on the list posts.
+        public async Task<IActionResult> GetProgressNote(int id = 0)
         {
-            return PartialView("~/views/patient/_patientProgressNote.cshtml");
+            if (id == 0)
+                return PartialView("~/views/patient/_patientProgressNote.cshtml");
+
+            var note = await _patientService.GetProgressNoteByIdAsync(id);
+            if (note == null)
+                return NotFound("That progress note no longer exists.");
+
+            if (!CanModifyProgressNote(note))
+                return StatusCode(403, "You can only edit notes written from your own login.");
+
+            return PartialView("~/views/patient/_patientProgressNote.cshtml", note);
         }
 
         public async Task<IActionResult> AddProgressNote([FromBody] ProgressNotesDto addsDto)
         {
-            if (User.HasClaim(c => c.Value == "supervisor"))
+            // An edit must not be able to change a note's author, and one role must not
+            // be able to edit the other's notes. Hiding the button is not enough on its
+            // own - the endpoint is still reachable with any id.
+            if (addsDto.Id > 0)
+            {
+                var existing = await _patientService.GetProgressNoteByIdAsync(addsDto.Id);
+                if (existing == null)
+                    return NotFound("That progress note no longer exists.");
+
+                if (!CanModifyProgressNote(existing))
+                    return StatusCode(403, "You can only edit notes written from your own login.");
+
+                // An edit may change the text, the signature and the date and time.
+                // It may not change who wrote the note, which patient it belongs to,
+                // or which lab it sits in. Those three come from the stored row, not
+                // from the request: UpdateProgressNote assigns all of them, so
+                // accepting them from the client would let a caller move a note to
+                // another patient or campus by editing their own note. This is the
+                // same failure mode as trusting txtLabId at write time.
+                addsDto.NotesFrom = existing.NotesFrom;
+                addsDto.LabId = existing.LabId;
+                addsDto.PatientId = existing.PatientId;
+            }
+            else if (User.HasClaim(c => c.Value == "supervisor"))
             {
                 addsDto.NotesFrom = "supervisor";
             }
@@ -469,14 +504,51 @@ namespace EMRSimulation.WebApp.Controllers
                 addsDto.NotesFrom = "student";
             }
 
+            var wasEdit = addsDto.Id > 0;
             int result = await _patientService.AddProgressNotesAsync(addsDto);
-            return Ok(result);
+
+            // Structured rather than a bare id: the combined progress note screen reads
+            // response.success and response.message. Returning the id alone left every
+            // save looking like a failure even though the note had been written.
+            return Ok(new
+            {
+                success = result > 0,
+                id      = result,
+                message = result > 0
+                    ? (wasEdit ? "Progress note updated." : "Progress note saved.")
+                    : "The progress note could not be saved."
+            });
         }
 
         public async Task<IActionResult> DeleteProgressNote(int Id)
         {
+            // Naomi asked for delete to be removed from the student login. The button is
+            // gone from the list, and this stops the endpoint being called directly.
+            if (User.HasClaim(c => c.Value == "student"))
+                return StatusCode(403, "Progress notes cannot be deleted from a student login.");
+
+            var existing = await _patientService.GetProgressNoteByIdAsync(Id);
+            if (existing == null)
+                return NotFound("That progress note no longer exists.");
+
+            if (!CanModifyProgressNote(existing))
+                return StatusCode(403, "You can only delete notes written from your own login.");
+
             int result = await _patientService.DeleteProgressNotesAsync(Id);
             return Ok(result);
+        }
+
+        // A note may only be touched by the role that wrote it. Notes written before
+        // NotesFrom was recorded have no author, so only a supervisor may tidy them up.
+        private bool CanModifyProgressNote(ProgressNotesDto note)
+        {
+            if (User.HasClaim(c => c.Value == "supervisor"))
+                return string.IsNullOrEmpty(note.NotesFrom) || note.NotesFrom == "supervisor";
+
+            if (User.HasClaim(c => c.Value == "student"))
+                return note.NotesFrom == "student";
+
+            return false;
         }
         [HttpPost]
         public async Task<IActionResult> AddRiskmanIncident([FromBody] RiskmanDto dto)

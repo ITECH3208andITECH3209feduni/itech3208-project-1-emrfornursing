@@ -1,0 +1,141 @@
+﻿@*
+    Sprint 3, Requirement 1 - module table.
+    Rendered on its own so the list can be refreshed by AJAX after a
+    create / copy / rename / delete without reloading the whole page.
+*@
+@using EMRSimulation.Domain.Dtos;
+@model IEnumerable<ModuleDto>
+@{
+    // Students may browse and open modules but never change them. Set by
+    // ModuleController; defaults to false so a missing flag fails closed.
+    var canManage = ViewData["CanManage"] as bool? ?? false;
+}
+
+<table id="moduleTable" class="display" style="width:100%">
+    <thead>
+        <tr>
+            <th>Id</th>
+            <th>Year Level</th>
+            <th>Unit</th>
+            <th>Module</th>
+            <th>Patients</th>
+            <th>Last Updated</th>
+            <th></th>
+            <th></th>
+            <th></th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @* No hand-rolled empty-state row here. A single <td colspan="9"> gives
+           DataTables one cell where it expects nine, which raises "Requested
+           unknown parameter" - and its default error mode is a blocking
+           alert(). An empty <tbody> plus language.emptyTable below is the
+           idiomatic way to show the same message safely. *@
+        @foreach (var m in Model)
+        {
+            <tr data-module-id="@m.Id" data-module-name="@m.ModuleName" data-unit-id="@m.UnitId">
+                <td>@m.Id</td>
+                <td>@m.YearLevelName</td>
+                <td>@(string.IsNullOrWhiteSpace(m.UnitCode) ? m.UnitName : $"{m.UnitCode} - {m.UnitName}")</td>
+                <td>
+                    <strong>@m.ModuleName</strong>
+                    @if (!string.IsNullOrWhiteSpace(m.Description))
+                    {
+                        <div class="text-muted small">@m.Description</div>
+                    }
+                    @* Filled in after render by the lab-loads lookup below. Empty
+                       unless this module is currently sitting in the caller's lab. *@
+                    <div class="small labLoadStatus" data-module-id="@m.Id"></div>
+                </td>
+                <td>@m.PatientCount</td>
+                <td>@((m.UpdatedDate ?? m.CreatedDate).ToString("yyyy-MM-dd"))</td>
+                <td>
+                    <a href="javascript:void(0);" class="btn btn-primary btn-sm openModule"
+                       data-custom="@m.Id" style="background-color:#FF8A30;">Open</a>
+                </td>
+                <td>
+                    @if (canManage)
+                    {
+                        <a href="javascript:void(0);" class="btn btn-primary btn-sm copyModule"
+                           data-custom="@m.Id" style="background-color:#FF8A30;">Copy</a>
+                    }
+                </td>
+                <td>
+                    @if (canManage)
+                    {
+                        @* Loading replaces any previous copy in this lab, so the
+                           label changes to Reload once one exists. Set below. *@
+                        <a href="javascript:void(0);" class="btn btn-success btn-sm loadIntoLab"
+                           data-custom="@m.Id">Load into lab</a>
+                    }
+                </td>
+                <td>
+                    @if (canManage)
+                    {
+                        <a href="javascript:void(0);" class="btn btn-primary btn-sm renameModule"
+                           data-custom="@m.Id" style="background-color:#FF8A30;">Rename</a>
+                        <a href="javascript:void(0);" class="btn btn-danger btn-sm deleteModule"
+                           data-custom="@m.Id">Delete</a>
+                    }
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<script>
+    // DataTables defaults to alert() on error, which blocks the whole browser
+    // tab until dismissed. Log to the console instead so a table problem can
+    // never freeze an academic mid-class.
+    if ($.fn.dataTable) { $.fn.dataTable.ext.errMode = 'none'; }
+
+    $('#moduleTable').on('error.dt', function (e, settings, techNote, message) {
+        console.error('DataTables error on #moduleTable:', message);
+    }).DataTable({
+        "paging": true,
+        "info": false,
+        "searching": false,
+        "ordering": true,
+        "autoWidth": false,
+        "lengthChange": false,
+        "language": {
+            "emptyTable": "No modules match. Use New Module to create a laboratory scenario, or clear the filters above."
+        },
+        "columnDefs": [
+            { "targets": [0], "visible": false },
+            { "targets": [6, 7, 8, 9], "orderable": false }
+        ]
+    });
+
+    // Which of these modules already sit in this supervisor's lab. Runs on every
+    // render of the list, so the badges stay correct after a load or a refresh.
+    // Students get an empty array back, and the buttons are not rendered for them
+    // anyway, so this is a no-op on the student view.
+    $.ajax({
+        url: '/module/getlabmoduleloads',
+        method: 'GET',
+        success: function (loads) {
+            (loads || []).forEach(function (l) {
+                var status = $('.labLoadStatus[data-module-id="' + l.moduleId + '"]');
+                if (!status.length) return;
+
+                var when = l.loadedAt ? new Date(l.loadedAt) : null;
+                var whenText = when
+                    ? when.toLocaleDateString() + ' ' + when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    : 'earlier';
+
+                status.html('<span class="text-success">In your lab</span>' +
+                            '<span class="text-muted"> - loaded ' + whenText + '</span>');
+
+                $('.loadIntoLab[data-custom="' + l.moduleId + '"]')
+                    .text('Reload into lab')
+                    .removeClass('btn-success').addClass('btn-warning');
+            });
+        },
+        error: function (xhr) {
+            // Not worth interrupting the academic over; the badge is informational.
+            console.error('Could not read lab module loads:', xhr.status);
+        }
+    });
+</script>

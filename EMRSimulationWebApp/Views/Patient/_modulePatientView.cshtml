@@ -1,0 +1,290 @@
+@*
+    Sprint 3, Requirement 1 - a module's patient.
+
+    This view exists because reusing _supervisorPatientList left modules
+    unpopulatable: that partial has no Select, so #txtPatientId was never set and
+    every chart screen had no patient context. Select here mirrors the behaviour
+    of _patientList so the flow sheet, progress note and use case menus become
+    usable against the module's patient.
+
+    Supervisors get Edit. Students get read-only, per Naomi's student workflow.
+*@
+@using EMRSimulation.Domain.Dtos;
+@using EMRSimulationWebApp.Controllers;
+@model ModulePatientViewModel
+
+@{
+    ViewData["Title"] = "Module Patient";
+    var canEdit = Model.CanEdit;
+}
+
+<div class="form-group row mb-2" style="background-color: black; color: white;">
+    <div class="col-sm-12">
+        <label class="col-form-label">
+            MODULE: @Model.Module?.ModuleName
+            <span style="font-weight:normal; opacity:0.8;">
+                &nbsp;|&nbsp; @Model.Module?.YearLevelName &nbsp;|&nbsp; @Model.Module?.UnitName
+            </span>
+        </label>
+    </div>
+</div>
+
+<p class="text-muted small">
+    @if (canEdit)
+    {
+        <text>
+            Select the patient to open its charts, or Edit to change the patient details.
+            Everything saved here belongs to this module and is shared with every campus.
+        </text>
+    }
+    else
+    {
+        <text>Select the patient to view this scenario's documentation.</text>
+    }
+</p>
+
+<div class="text-left">
+    <table id="modulePatientTable" class="display" style="width:100%">
+        <thead>
+            <tr>
+                <th>Patient ID</th>
+                <th>URI Number</th>
+                <th>First Name</th>
+                <th>Last Name</th>
+                <th>Date of Birth</th>
+                <th>Gender</th>
+                <th>Admit Date</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var p in Model.Patients)
+            {
+                <tr data-patient-id="@p.Id"
+                    data-first="@p.FirstName" data-last="@p.LastName"
+                    data-uri="@p.UriNumber" data-dob="@p.DateOfBirth?.ToString("yyyy-MM-dd")"
+                    data-gender="@p.Gender" data-admit="@p.AdmitDate?.ToString("yyyy-MM-dd")"
+                    data-weight="@p.Weight" data-height="@p.Height" data-age="@p.Age"
+                    data-allergy="@p.Allergy" data-intolerance="@p.Intolerance"
+                    data-address="@p.Address" data-moduleid="@p.ModuleId">
+                    <td>@p.Id</td>
+                    <td>@p.UriNumber</td>
+                    <td>@p.FirstName</td>
+                    <td>@p.LastName</td>
+                    <td>@p.DateOfBirth?.ToString("yyyy-MM-dd")</td>
+                    <td>@p.Gender</td>
+                    <td>@p.AdmitDate?.ToString("yyyy-MM-dd")</td>
+                    <td>
+                        <a href="javascript:void(0);" class="btn btn-primary btn-sm selectModulePatient"
+                           style="background-color:#FF8A30;">Select</a>
+                        @if (canEdit)
+                        {
+                            <a href="javascript:void(0);" class="btn btn-primary btn-sm editModulePatient"
+                               style="background-color:#FF8A30;">Edit</a>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<div id="modulePatientCard" class="mt-3" style="display:none; border:1px solid #d6dde6; border-radius:10px; padding:14px 16px; background:#f7f9fc;">
+    <div style="font-size:17px; margin-bottom:8px;"><strong id="mpName"></strong></div>
+    <div class="row">
+        <div class="col"><strong>URI:</strong> <span id="mpUri"></span></div>
+        <div class="col"><strong>Date of birth:</strong> <span id="mpDob"></span></div>
+        <div class="col"><strong>Gender:</strong> <span id="mpGender"></span></div>
+        <div class="col"><strong>Weight:</strong> <span id="mpWeight"></span></div>
+        <div class="col"><strong>Height:</strong> <span id="mpHeight"></span></div>
+        <div class="col"><strong>Age:</strong> <span id="mpAge"></span></div>
+    </div>
+    <div class="row mt-1">
+        <div class="col"><strong>Allergy:</strong> <span id="mpAllergy"></span></div>
+        <div class="col"><strong>Intolerance:</strong> <span id="mpIntolerance"></span></div>
+        <div class="col"><strong>Address:</strong> <span id="mpAddress"></span></div>
+    </div>
+    <div class="mt-3">
+        <a href="javascript:void(0);" id="btnOpenModuleRecords" class="btn btn-primary"
+           style="background-color:#FF8A30;">View patient records</a>
+    </div>
+</div>
+
+<div class="mt-2"><label id="lblModulePatientMsg" style="color:green"></label></div>
+
+@if (canEdit)
+{
+    <div class="modal fade" id="editModulePatientModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit module patient</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="mpEditId" />
+                    <input type="hidden" id="mpEditModuleId" />
+                    <div class="row g-2">
+                        <div class="col-sm-4"><label class="form-label small">First name</label><input type="text" id="mpEditFirst" class="form-control" maxlength="50" /></div>
+                        <div class="col-sm-4"><label class="form-label small">Last name</label><input type="text" id="mpEditLast" class="form-control" maxlength="50" /></div>
+                        <div class="col-sm-4"><label class="form-label small">URI number</label><input type="text" id="mpEditUri" class="form-control" maxlength="50" /></div>
+                        <div class="col-sm-4"><label class="form-label small">Date of birth</label><input type="date" id="mpEditDob" class="form-control" /></div>
+                        <div class="col-sm-4"><label class="form-label small">Admit date</label><input type="date" id="mpEditAdmit" class="form-control" /></div>
+                        <div class="col-sm-4"><label class="form-label small">Gender</label><input type="text" id="mpEditGender" class="form-control" maxlength="10" /></div>
+                        <div class="col-sm-4"><label class="form-label small">Weight</label><input type="text" id="mpEditWeight" class="form-control" maxlength="10" /></div>
+                        <div class="col-sm-4"><label class="form-label small">Height</label><input type="text" id="mpEditHeight" class="form-control" maxlength="10" /></div>
+                        <div class="col-sm-4"><label class="form-label small">Age</label><input type="text" id="mpEditAge" class="form-control" maxlength="10" /></div>
+                        <div class="col-sm-6"><label class="form-label small">Allergy</label><input type="text" id="mpEditAllergy" class="form-control" maxlength="200" /></div>
+                        <div class="col-sm-6"><label class="form-label small">Intolerance</label><input type="text" id="mpEditIntolerance" class="form-control" maxlength="200" /></div>
+                        <div class="col-sm-12"><label class="form-label small">Address</label><input type="text" id="mpEditAddress" class="form-control" maxlength="200" /></div>
+                    </div>
+                    <div class="text-danger small mt-2" id="mpEditError"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="btnSaveModulePatient" style="background-color:#FF8A30;">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<script>
+(function () {
+
+    // Same lesson as the module repository: this partial is re-injected every time
+    // a module is opened, so delegated handlers on document would stack up and fire
+    // N times per click. Namespace them and drop the previous set first.
+    $(document).off('.modpat');
+
+    if ($.fn.dataTable) { $.fn.dataTable.ext.errMode = 'none'; }
+    $('#modulePatientTable').DataTable({
+        "paging": false, "info": false, "searching": false, "ordering": false,
+        "autoWidth": false, "lengthChange": false,
+        "language": { "emptyTable": "This module has no patient record." },
+        "columnDefs": [{ "targets": [0], "visible": false }]
+    });
+
+    function rowData(el) { return $(el).closest('tr').data(); }
+
+    $(document).on('click.modpat', '.selectModulePatient', function () {
+        var d = rowData(this);
+
+        // The whole point of this view: give the chart screens a patient context.
+        $('#txtPatientId').val(d.patientId);
+
+        $('#mpName').text((d.first || '') + ' ' + (d.last || ''));
+        $('#mpUri').text(d.uri || '');
+        $('#mpDob').text(d.dob || '');
+        $('#mpGender').text(d.gender || '');
+        $('#mpWeight').text(d.weight || '');
+        $('#mpHeight').text(d.height || '');
+        $('#mpAge').text(d.age || '');
+        $('#mpAllergy').text(d.allergy || '');
+        $('#mpIntolerance').text(d.intolerance || '');
+        $('#mpAddress').text(d.address || '');
+        $('#modulePatientCard').show();
+        $('#lblModulePatientMsg').text('');
+    });
+
+    $(document).on('click.modpat', '#btnOpenModuleRecords', function () {
+        // Mirrors _patientList's View Patient Records: reveal the chart menus and
+        // load the patient banner. labId stays 0 here, which is module mode.
+        $("#toggleRecordMenu").show();
+        $("#toggleProgressMenu").show();
+        $("#togglePatientUsecaseMenu").show();
+
+        var labId = $('#txtLabId').val();
+        var patientId = $('#txtPatientId').val();
+
+        $.ajax({
+            url: "/patient/getpatientrecord",
+            method: "GET",
+            data: { labId: labId, patientId: patientId },
+            success: function (response) {
+                $('#patient-header').html(response);
+            },
+            error: function (xhr) {
+                $('#lblModulePatientMsg').text('Could not load the patient record.').css('color', 'red');
+                console.error('getpatientrecord failed:', xhr.status, xhr.responseText);
+            }
+        });
+    });
+
+    $(document).on('click.modpat', '.editModulePatient', function () {
+        var d = rowData(this);
+        $('#mpEditId').val(d.patientId);
+        $('#mpEditModuleId').val(d.moduleid);
+        $('#mpEditFirst').val(d.first || '');
+        $('#mpEditLast').val(d.last || '');
+        $('#mpEditUri').val(d.uri || '');
+        $('#mpEditDob').val(d.dob || '');
+        $('#mpEditAdmit').val(d.admit || '');
+        $('#mpEditGender').val(d.gender || '');
+        $('#mpEditWeight').val(d.weight || '');
+        $('#mpEditHeight').val(d.height || '');
+        $('#mpEditAge').val(d.age || '');
+        $('#mpEditAllergy').val(d.allergy || '');
+        $('#mpEditIntolerance').val(d.intolerance || '');
+        $('#mpEditAddress').val(d.address || '');
+        $('#mpEditError').text('');
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('editModulePatientModal')).show();
+    });
+
+    $(document).on('click.modpat', '#btnSaveModulePatient', function () {
+        var first = ($('#mpEditFirst').val() || '').trim();
+        var last = ($('#mpEditLast').val() || '').trim();
+        if (!first || !last) { $('#mpEditError').text('First and last name are required.'); return; }
+
+        var payload = {
+            Id: parseInt($('#mpEditId').val(), 10),
+            ModuleId: parseInt($('#mpEditModuleId').val(), 10),
+            LabId: 0,
+            FirstName: first,
+            LastName: last,
+            UriNumber: $('#mpEditUri').val() || null,
+            DateOfBirth: $('#mpEditDob').val() || null,
+            AdmitDate: $('#mpEditAdmit').val() || null,
+            Gender: $('#mpEditGender').val() || null,
+            Weight: $('#mpEditWeight').val() || null,
+            Height: $('#mpEditHeight').val() || null,
+            Age: $('#mpEditAge').val() || null,
+            Allergy: $('#mpEditAllergy').val() || null,
+            Intolerance: $('#mpEditIntolerance').val() || null,
+            Address: $('#mpEditAddress').val() || null
+        };
+
+        $.ajax({
+            type: 'POST',
+            url: '/module/updatemodulepatient',
+            contentType: 'application/json',
+            data: JSON.stringify(payload),
+            success: function (response) {
+                bootstrap.Modal.getInstance(document.getElementById('editModulePatientModal')).hide();
+                $.ajax({
+                    url: '/module/getmodulepatients',
+                    method: 'GET',
+                    data: { moduleId: payload.ModuleId },
+                    success: function (html) {
+                        $('#content-area').html(html);
+                        $('#lblModulePatientMsg').text(response.resultMessage).css('color', 'green');
+                    }
+                });
+            },
+            error: function (xhr) {
+                $('#mpEditError').text(xhr.responseText || 'The patient could not be saved.');
+            }
+        });
+    });
+
+    $(document).on('hidden.bs.modal.modpat', '.modal', function () {
+        if (!document.querySelector('.modal.show')) {
+            document.querySelectorAll('.modal-backdrop').forEach(function (b) { b.remove(); });
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+        }
+    });
+
+})();
+</script>

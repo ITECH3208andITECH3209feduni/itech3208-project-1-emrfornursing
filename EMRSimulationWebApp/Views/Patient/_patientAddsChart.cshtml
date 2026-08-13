@@ -2,6 +2,49 @@
 @model PatientDto
 
 <style>
+    /* Escalation guidance panel. Sits beside the per-field score table, as in the
+       wireframe. Deliberately compact so the whole ADDS scale is readable without
+       scrolling or opening the modal. */
+    .adds-actions {
+        background-color: #FFFFFF;
+        border: 1px solid #CCCCCC;
+        padding: 10px 12px;
+        font-size: 12px;
+        line-height: 1.35;
+    }
+
+    .adds-actions-title {
+        background-color: #000000;
+        color: #FFFFFF;
+        font-weight: bold;
+        font-size: 13px;
+        padding: 3px 8px;
+        margin: -10px -12px 8px -12px;
+    }
+
+    .adds-band + .adds-band {
+        margin-top: 7px;
+    }
+
+    .adds-band-score {
+        font-weight: bold;
+    }
+
+    .adds-actions ul {
+        margin: 2px 0 0 0;
+        padding-left: 18px;
+    }
+
+    .adds-actions li {
+        margin-bottom: 1px;
+    }
+
+    .adds-actions-link {
+        display: inline-block;
+        margin-top: 8px;
+        font-size: 11px;
+    }
+
     /* Style the select element */
     select {
         width: 150px;
@@ -56,41 +99,13 @@
     <div class="row">
         <!-- Left Column -->
         <div class="col-md-5">
-            <!-- Section 1 -->
-            <div class="section mb-4">
-
-                <div class="form-group row mb-1">
-                    <label for="patientUri" class="col-sm-4 col-form-label">URI Number:</label>
-                    <div class="col-sm-8">
-                        <input type="text" class="form-control" id="patientUri" placeholder="Enter URI" disabled value="@Model.UriNumber">
-                    </div>
-                </div>
-                <div class="form-group row mb-1">
-                    <label for="patientName" class="col-sm-4 col-form-label">Patient Name:</label>
-                    <div class="col-sm-8">
-                        <input type="text" class="form-control" id="patientName" disabled value="@Model.FirstName">
-                    </div>
-                </div>
-                <div class="form-group row mb-1">
-                    <label for="dob" class="col-sm-4 col-form-label">Date of Birth:</label>
-                    <div class="col-sm-8">
-                        <input type="text" class="form-control" id="dob" disabled value="@Model.DateOfBirth">
-                    </div>
-                </div>
-                <div class="form-group row mb-1">
-                    <label for="sex" class="col-sm-4 col-form-label">Sex:</label>
-                    <div class="col-sm-8">
-                        <input type="text" class="form-control" id="sex" disabled value="@Model.Gender">
-                    </div>
-                </div>
-                <div class="form-group row mb-1">
-                    <label for="admitDate" class="col-sm-4 col-form-label">Admit Date:</label>
-                    <div class="col-sm-8">
-                        <input type="text" class="form-control" id="admitDate" disabled value="@Model.AdmitDate">
-                    </div>
-                </div>
-            </div>
-
+            @*
+                The URI / name / date of birth / sex / admit date panel that used to sit
+                here has been removed. Every one of those values is already shown in the
+                patient banner directly above this screen, and the duplicate set was
+                read-only, so it took up the top third of the column without adding
+                anything. Nothing referenced those fields in script.
+            *@
             <div class="section mb-4">
                 <div class="form-group row mb-1">
                     <label for="enteredDate" class="col-sm-4 col-form-label">Date Entered:</label>
@@ -187,6 +202,23 @@
                             <option value="<=3" data-color="#FFFFFF" data-score="0" class="white"><=3</option>
                         </select>
                         <div class="color-box" id="colorBoxO2Flow"></div>
+                        <div class="form-check form-check-inline ms-2 align-middle">
+                            <input class="form-check-input" type="checkbox" id="chkO2FlowNA" />
+                            <label class="form-check-label" for="chkO2FlowNA" style="font-weight:normal">N/A</label>
+                        </div>
+                    </div>
+                </div>
+                @* Mode of Delivery sits directly under the flow rate, as Naomi asked.
+                   It carries no ADDS score, so no data-label class and no colour box. *@
+                <div class="form-group row mb-1">
+                    <label for="ddlModeOfDelivery" class="col-sm-5 col-form-label">Mode of Delivery</label>
+                    <div class="col-sm-7">
+                        <select id="ddlModeOfDelivery">
+                            <option value=""></option>
+                            <option value="Room Air (RA)">Room Air (RA)</option>
+                            <option value="Intra Nasal Cannula (INC)">Intra Nasal Cannula (INC)</option>
+                            <option value="Hudson Mask (HM)">Hudson Mask (HM)</option>
+                        </select>
                     </div>
                 </div>
                 <div class="form-group row mb-1">
@@ -300,23 +332,56 @@
 
                 
                 <div class="form-group row" style="background-color:#F2F2F3">
-                    <div class="col-sm-5">
-                        <div class="row">
-                            <div class="col">
-                                <label class="col-form-label nav-link" data-bs-toggle="modal" data-bs-target="#addsscoreModal" style="cursor:pointer">ADDS SCORES:</label>
-                            </div>
-                        </div>
+                    @*
+                        Escalation guidance as readable text, per the wireframe. This was a
+                        scaled-down addsscore.png thumbnail, which was too small to read at
+                        the bedside and only legible after opening the modal. Wording is
+                        transcribed from that same image so the clinical content is unchanged;
+                        the modal is still available for the full chart.
+                    *@
+                    <div class="col-sm-6">
+                        <div class="adds-actions">
+                            <div class="adds-actions-title">Actions Required</div>
 
-                        <div class="row">
-                            <div class="col">
-                                <img src="~/images/addsscore.png" style="width: 50%; cursor:pointer" data-bs-toggle="modal" data-bs-target="#addsscoreModal"/>
+                            <div class="adds-band">
+                                <div class="adds-band-score">Total ADDS Score 1&ndash;3</div>
+                                <ul>
+                                    <li>Increase frequency of observations <em>[specify frequency]</em></li>
+                                    <li>Inform senior nurse and/or Team Leader</li>
+                                </ul>
                             </div>
-                        </div>
 
+                            <div class="adds-band">
+                                <div class="adds-band-score">Total ADDS Score 4 - 5</div>
+                                <ul>
+                                    <li>Senior nurse and/or junior medical officer review within 30 minutes</li>
+                                </ul>
+                            </div>
+
+                            <div class="adds-band">
+                                <div class="adds-band-score">Total ADDS Score 6 &ndash; 7</div>
+                                <ul>
+                                    <li>Senior medical officer review (registrar or above) within 30 minutes</li>
+                                    <li>Request review, and note on the back of this form</li>
+                                </ul>
+                            </div>
+
+                            <div class="adds-band">
+                                <div class="adds-band-score">Total ADDS Score &ge; 8</div>
+                                <ul>
+                                    <li>Place Emergency call</li>
+                                    <li>Begin initial life support interventions (support airway, breathing, circulation)</li>
+                                    <li>Advanced life support provider to attend patient immediately</li>
+                                </ul>
+                            </div>
+
+                            <a href="javascript:void(0);" class="adds-actions-link"
+                               data-bs-toggle="modal" data-bs-target="#addsscoreModal">View the full ADDS chart</a>
+                        </div>
                     </div>
-                    
 
-                    <div class="col-sm-7">
+
+                    <div class="col-sm-6">
                         <div class="form-group row">
                             <div class="col-sm-6 inner-border">
                                 Respiratory Rate
@@ -655,6 +720,24 @@ $('.data-label').on('click', function() {
 
         document.getElementById('ddlO2Flow').dispatchEvent(new Event('change'));
 
+        // N/A means no supplemental oxygen was running, so there is no flow rate to
+        // record. The dropdown is cleared and disabled rather than hidden, so it is
+        // obvious why it cannot be used. An unrecorded rate scores 0 either way.
+        $('#chkO2FlowNA').on('change', function () {
+            var na = this.checked;
+
+            $('#ddlO2Flow').prop('disabled', na);
+
+            if (na) {
+                $('#ddlO2Flow').val("");
+                document.getElementById('colorBoxO2Flow').style.backgroundColor = "#FFFFFF";
+                $(".flowratescore").html("0");
+                updateTotalScore();
+            } else {
+                document.getElementById('ddlO2Flow').dispatchEvent(new Event('change'));
+            }
+        });
+
         document.getElementById('ddlBpRate').addEventListener('change', function () {
             var selectedOption = this.options[this.selectedIndex];
             var color = selectedOption.getAttribute('data-color');
@@ -798,6 +881,8 @@ $('.data-label').on('click', function() {
             var ddlRespiratory = $('#ddlRespiratory').val();
             var ddlO2Sat = $('#ddlO2Sat').val();
             var ddlO2Flow = $('#ddlO2Flow').val();
+            var o2FlowNA = $('#chkO2FlowNA').is(':checked');
+            var ddlModeOfDelivery = $('#ddlModeOfDelivery').val();
             var ddlBpRate = $('#ddlBpRate').val();
             var ddlBpRateDiastolic = $('#ddlBpRateDiastolic').val();
             var ddlHeartRate = $('#ddlHeartRate').val();
@@ -807,7 +892,10 @@ $('.data-label').on('click', function() {
             var enteredDate = $('#enteredDate').val().trim();
             var enteredTime = $('#enteredTime').val().trim();
 
-            if (ddlRespiratory === "" || ddlO2Sat === "" || ddlO2Flow === "" 
+            // A flow rate is required unless N/A is ticked. Mode of delivery is required
+            // either way: "no oxygen running" is recorded as Room Air, not left blank.
+            if (ddlRespiratory === "" || ddlO2Sat === ""
+                || (ddlO2Flow === "" && !o2FlowNA) || ddlModeOfDelivery === ""
                 || ddlBpRate === "" || ddlBpRateDiastolic === "" || ddlHeartRate === ""
                 || ddlTemperatureC === "" || ddlConsciousness === ""
                 || enteredDate === "" || enteredTime === "") {
@@ -827,7 +915,8 @@ $('.data-label').on('click', function() {
                 Temperature: ddlTemperatureC,
                 Consciousness: ddlConsciousness,
                 OxygenSaturation: ddlO2Sat,
-                OxygenFlow: ddlO2Flow,
+                OxygenFlow: o2FlowNA ? "N/A" : ddlO2Flow,
+                ModeOfDelivery: ddlModeOfDelivery,
                 BloodPressure: ddlBpRate,
                 BloodPressureDiastolic: ddlBpRateDiastolic,
 
