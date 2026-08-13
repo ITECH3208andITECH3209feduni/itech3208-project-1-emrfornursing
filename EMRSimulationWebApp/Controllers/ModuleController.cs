@@ -20,11 +20,13 @@ namespace EMRSimulationWebApp.Controllers
     {
         private readonly IModuleService _moduleService;
         private readonly IPatientService _patientService;
+        private readonly ILabService _labService;
 
-        public ModuleController(IModuleService moduleService, IPatientService patientService)
+        public ModuleController(IModuleService moduleService, IPatientService patientService, ILabService labService)
         {
             _moduleService = moduleService;
             _patientService = patientService;
+            _labService = labService;
         }
 
         /// <summary>
@@ -246,39 +248,125 @@ namespace EMRSimulationWebApp.Controllers
         /// students' work - the same class of mistake as trusting txtLabId at
         /// write time, which caused the cross-campus leak earlier this sprint.
         /// </summary>
+        /// <summary>
+        /// The labs a module can be loaded into, with a flag for the caller's own.
+        /// Supervisor only - this drives the load picker.
+        /// </summary>
+        public async Task<IActionResult> GetLoadTargets(int moduleId)
+        {
+            if (!IsSupervisor()) return SupervisorOnly();
+
+            var ownLabId = CreatedBy() ?? 0;
+            var labs = await _labService.GetLabsAsync();
+
+            // Which of them already hold a copy of THIS module. Those will have their
+            // existing copy replaced, so the picker marks them as destructive.
+            var alreadyLoaded = new Dictionary<int, DateTime?>();
+            foreach (var lab in labs)
+            {
+                var loads = await _moduleService.GetLabModuleLoadsAsync(lab.Id);
+                var match = loads.FirstOrDefault(l => l.ModuleId == moduleId);
+                if (match != null) alreadyLoaded[lab.Id] = match.LoadedIntoLabAt;
+            }
+
+            return Ok(labs.Select(l => new
+            {
+                labId    = l.Id,
+                labName  = l.LabName,
+                isOwn    = l.Id == ownLabId,
+                loaded   = alreadyLoaded.ContainsKey(l.Id),
+                loadedAt = alreadyLoaded.TryGetValue(l.Id, out var when) ? when : null
+            }));
+        }
+
+        /// <summary>
+        /// Copies the module into one or more campus labs, ready for class.
+        ///
+        /// Labs now come from the request, because academics asked to prepare a
+        /// scenario once and push it to every campus. That is a deliberate change:
+        /// previously the target was taken from the caller's own claim precisely so
+        /// one campus could not write into another's lab. The protection that remains
+        /// is that this is supervisor-only, and that the confirmation names every lab
+        /// whose existing copy - and whose students' work - will be replaced.
+        ///
+        /// An empty list falls back to the caller's own lab.
+        /// </summary>
         [HttpPost]
         public async Task<IActionResult> LoadIntoLab([FromBody] LoadIntoLabRequest request)
         {
             if (!IsSupervisor()) return SupervisorOnly();
             if (request == null || request.ModuleId <= 0) return BadRequest("A module must be selected.");
 
-            var labId = CreatedBy();
-            if (labId == null || labId <= 0)
-                return BadRequest("Your login is not associated with a campus lab, so a module cannot be loaded.");
+            var targets = (request.LabIds ?? new List<int>()).Where(id => id > 0).Distinct().ToList();
 
-            try
+            if (targets.Count == 0)
             {
-                var result = await _moduleService.LoadModuleIntoLabAsync(request.ModuleId, labId.Value);
+                var own = CreatedBy();
+                if (own == null || own <= 0)
+                    return BadRequest("Your login is not associated with a campus lab, so a module cannot be loaded.");
+                targets.Add(own.Value);
+            }
 
-                if (result == null)
-                    return StatusCode(500, "The module was not loaded. No result was returned.");
+            // Only labs that actually exist, so a crafted request cannot create
+            // orphaned patients against a lab id that was never real.
+            var known = (await _labService.GetLabsAsync(includeInactive: true)).ToDictionary(l => l.Id, l => l.LabName);
+            var unknown = targets.Where(id => !known.ContainsKey(id)).ToList();
+            if (unknown.Any())
+                return BadRequest($"Unknown lab: {string.Join(", ", unknown)}.");
 
-                var message = result.WasReplaced
-                    ? "Module loaded. The previous copy in this lab was replaced, including anything students had written into it."
-                    : "Module loaded into your lab. It will now appear in the patient list.";
+            var results = new List<object>();
+            var failures = new List<string>();
+            var replacedCount = 0;
 
-                return Ok(new
+            // Each lab is loaded independently. One failing must not leave the others
+            // half-done and unreported, so failures are collected rather than thrown.
+            foreach (var labId in targets)
+            {
+                try
                 {
-                    patientId    = result.PatientId,
-                    replaced     = result.WasReplaced,
-                    rowsRemoved  = result.RowsRemoved,
-                    resultMessage = message
-                });
+                    var result = await _moduleService.LoadModuleIntoLabAsync(request.ModuleId, labId);
+                    if (result == null)
+                    {
+                        failures.Add($"{known[labId]}: no result returned");
+                        continue;
+                    }
+
+                    if (result.WasReplaced) replacedCount++;
+
+                    results.Add(new
+                    {
+                        labId,
+                        labName     = known[labId],
+                        patientId   = result.PatientId,
+                        replaced    = result.WasReplaced,
+                        rowsRemoved = result.RowsRemoved
+                    });
+                }
+                catch (Exception ex)
+                {
+                    failures.Add($"{known[labId]}: {ex.Message}");
+                }
             }
-            catch (Exception ex)
+
+            var loadedInto = results.Count;
+
+            var message = loadedInto == 0
+                ? "The module was not loaded."
+                : $"Module loaded into {loadedInto} lab{(loadedInto == 1 ? "" : "s")}"
+                  + (replacedCount > 0
+                        ? $". {replacedCount} existing cop{(replacedCount == 1 ? "y was" : "ies were")} replaced, including anything students had written."
+                        : ".");
+
+            if (failures.Any())
+                message += " Failed: " + string.Join("; ", failures);
+
+            return Ok(new
             {
-                return StatusCode(500, "An error occurred while loading the module. " + ex.Message);
-            }
+                success = loadedInto > 0,
+                loaded  = results,
+                failed  = failures,
+                resultMessage = message
+            });
         }
 
         /// <summary>
@@ -287,11 +375,11 @@ namespace EMRSimulationWebApp.Controllers
         /// </summary>
         public async Task<IActionResult> GetLabModuleLoads()
         {
-            // Supervisor only. Naomi's student workflow is a normal patient list -
-            // students should not be told which patients are module copies, and it
-            // is not information they can act on.
-            if (!IsSupervisor()) return Ok(Array.Empty<object>());
-
+            // Readable by both roles. The badge was supervisor-only on the grounds
+            // that Naomi's student workflow is an ordinary patient list, but the team
+            // asked for it everywhere: a student should also be able to see that the
+            // patient they are working on came from a module and will be reset. It
+            // reveals only the scenario name, which is on the timetable anyway.
             var labId = CreatedBy();
             if (labId == null || labId <= 0) return Ok(Array.Empty<object>());
 
@@ -312,13 +400,16 @@ namespace EMRSimulationWebApp.Controllers
        request / view models
        ---------------------------------------------------------------------- */
 
-    /// <summary>
-    /// Carries only the module. The lab is taken from the caller's claim, so it
-    /// is deliberately absent here - there is nothing for a client to set.
-    /// </summary>
+    /// <summary>Which module to load, and into which labs.</summary>
     public class LoadIntoLabRequest
     {
         public int ModuleId { get; set; }
+
+        /// <summary>
+        /// Labs to load into. Empty means the caller's own lab. Supervisors may
+        /// select other campuses - see the note on LoadIntoLab.
+        /// </summary>
+        public List<int>? LabIds { get; set; }
     }
 
     public class CopyModuleRequest

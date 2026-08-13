@@ -504,8 +504,20 @@ namespace EMRSimulation.WebApp.Controllers
                 addsDto.NotesFrom = "student";
             }
 
+            var wasEdit = addsDto.Id > 0;
             int result = await _patientService.AddProgressNotesAsync(addsDto);
-            return Ok(result);
+
+            // Structured rather than a bare id: the combined progress note screen reads
+            // response.success and response.message. Returning the id alone left every
+            // save looking like a failure even though the note had been written.
+            return Ok(new
+            {
+                success = result > 0,
+                id      = result,
+                message = result > 0
+                    ? (wasEdit ? "Progress note updated." : "Progress note saved.")
+                    : "The progress note could not be saved."
+            });
         }
 
         public async Task<IActionResult> DeleteProgressNote(int Id)
