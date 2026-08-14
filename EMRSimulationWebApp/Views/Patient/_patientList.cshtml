@@ -172,7 +172,10 @@
             "ordering": true,
             "autoWidth": false,
             "lengthChange": false,
-            "pageLength": 10
+            // Five patients per module, and several modules can be loaded into one
+            // lab, so a lab session runs well past ten. The client asked to see all
+            // patients on a single page.
+            "pageLength": 50
             ,
             "columnDefs": [
                 {   "targets": [0,8,9,10,11,12,13],
