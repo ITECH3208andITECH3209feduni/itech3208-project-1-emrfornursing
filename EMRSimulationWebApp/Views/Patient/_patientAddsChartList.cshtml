@@ -2,8 +2,76 @@
     ViewData["Title"] = "Patient List";
 }
 @using EMRSimulation.Domain.Dtos;
+@using EMRSimulation.Domain.Clinical;
 @using System.Globalization
 @model PatientAddsListViewModel
+
+@*
+    Observation cells are shaded to their ADDS zone, the same colours the entry
+    form uses. The entry form reads the zone from the data-color attribute on the
+    option the user picked; this screen only has the stored text, so it looks the
+    colour up in AddsZones, which was generated from those same options.
+
+    Mode of delivery and diastolic blood pressure are never shaded - neither is
+    scored by ADDS.
+*@
+@functions {
+    static string Zone(string field, string value)
+    {
+        var colour = AddsZones.ColourFor(field, value);
+        return $"background-color:{colour};color:{AddsZones.TextColourFor(colour)}";
+    }
+}
+
+<style>
+    /* Zone colours are set inline per cell, because they depend on the stored value. */
+    #patientsAddsTable td {
+        vertical-align: middle;
+    }
+
+    .adds-total-badge {
+        display: inline-block;
+        min-width: 2.2rem;
+        padding: 0.15rem 0.5rem;
+        border: 1px solid rgba(0, 0, 0, 0.35);
+        border-radius: 0.75rem;
+        font-weight: 600;
+        text-align: center;
+    }
+
+    /* The zone colours carry the meaning, so give the legend the same swatches
+       rather than describing them in words only. */
+    .adds-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        align-items: center;
+        margin: 0.75rem 0;
+        font-size: 0.85rem;
+    }
+
+    .adds-legend span {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .adds-legend i {
+        width: 0.9rem;
+        height: 0.9rem;
+        border: 1px solid rgba(0, 0, 0, 0.35);
+        display: inline-block;
+    }
+</style>
+
+<div class="adds-legend">
+    <strong>ADDS zones:</strong>
+    <span><i style="background-color:@AddsZones.White"></i> 0 &ndash; routine</span>
+    <span><i style="background-color:@AddsZones.Yellow"></i> 1&ndash;3</span>
+    <span><i style="background-color:@AddsZones.LightOrange"></i> 4&ndash;5</span>
+    <span><i style="background-color:@AddsZones.Orange"></i> 6&ndash;7</span>
+    <span><i style="background-color:@AddsZones.Purple"></i> 8+ &ndash; emergency call</span>
+</div>
 
 <div class="text-left">
     <table id="patientsAddsTable" class="display">
@@ -47,34 +115,34 @@
                     <td>@patient.EnteredTime</td>
                     @if (patient.RespiratoryRate.Contains("Write"))
                     {
-                        <td>@patient.RespiratoryRate: (@patient.RespiratoryRateValue)</td>
+                        <td style="@Zone(AddsZones.RespiratoryRate, patient.RespiratoryRate)">@patient.RespiratoryRate: (@patient.RespiratoryRateValue)</td>
                     }
                     else
                     {
-                        <td>@patient.RespiratoryRate</td>
+                        <td style="@Zone(AddsZones.RespiratoryRate, patient.RespiratoryRate)">@patient.RespiratoryRate</td>
                     }
 
                     @if (patient.OxygenSaturation.Contains("Write"))
                     {
-                        <td>@patient.OxygenSaturation: (@patient.OxygenSaturationValue)</td>
+                        <td style="@Zone(AddsZones.OxygenSaturation, patient.OxygenSaturation)">@patient.OxygenSaturation: (@patient.OxygenSaturationValue)</td>
                     }
                     else
                     {
-                        <td>@patient.OxygenSaturation</td>
+                        <td style="@Zone(AddsZones.OxygenSaturation, patient.OxygenSaturation)">@patient.OxygenSaturation</td>
                     }
 
-                    <td>@patient.OxygenFlow</td>
+                    <td style="@Zone(AddsZones.OxygenFlow, patient.OxygenFlow)">@patient.OxygenFlow</td>
 
                     @* Observations recorded before Sprint 3 have no mode of delivery. *@
                     <td>@(string.IsNullOrEmpty(patient.ModeOfDelivery) ? "-" : patient.ModeOfDelivery)</td>
 
                     @if (patient.BloodPressure.Contains("Write"))
                     {
-                        <td>@patient.BloodPressure: (@patient.BloodPressureValue)</td>
+                        <td style="@Zone(AddsZones.BloodPressure, patient.BloodPressure)">@patient.BloodPressure: (@patient.BloodPressureValue)</td>
                     }
                     else
                     {
-                        <td>@patient.BloodPressure</td>
+                        <td style="@Zone(AddsZones.BloodPressure, patient.BloodPressure)">@patient.BloodPressure</td>
                     }
 
                     @if (patient.BloodPressureDiastolic.Contains("Write"))
@@ -88,24 +156,36 @@
 
                     @if (patient.HeartRate.Contains("Write"))
                     {
-                        <td>@patient.HeartRate: (@patient.HeartRateValue)</td>
+                        <td style="@Zone(AddsZones.HeartRate, patient.HeartRate)">@patient.HeartRate: (@patient.HeartRateValue)</td>
                     }
                     else
                     {
-                        <td>@patient.HeartRate</td>
+                        <td style="@Zone(AddsZones.HeartRate, patient.HeartRate)">@patient.HeartRate</td>
                     }
 
                     @if (patient.Temperature.Contains("Write"))
                     {
-                        <td>@patient.Temperature: (@patient.TemperatureValue)</td>
+                        <td style="@Zone(AddsZones.Temperature, patient.Temperature)">@patient.Temperature: (@patient.TemperatureValue)</td>
                     }
                     else
                     {
-                        <td>@patient.Temperature</td>
+                        <td style="@Zone(AddsZones.Temperature, patient.Temperature)">@patient.Temperature</td>
                     }
 
-                    <td>@patient.Consciousness</td>
-                    <td>@patient.TotalScore</td>
+                    <td style="@Zone(AddsZones.Consciousness, patient.Consciousness)">@patient.Consciousness</td>
+                    <td>
+                        @{
+                            var total       = patient.TotalScore ?? 0;
+                            var totalColour = AddsZones.TotalColour(total);
+                            var totalText   = AddsZones.TextColourFor(totalColour);
+                            var totalTitle  = total >= 8
+                                ? "Emergency call threshold"
+                                : "ADDS total";
+                        }
+                        <span class="adds-total-badge"
+                              style="background-color:@totalColour;color:@totalText"
+                              title="@totalTitle">@total</span>
+                    </td>
 
                     <td>
                         <a href="javascript:void(0);" class="btn btn-danger btn-sm deleteAdds"
