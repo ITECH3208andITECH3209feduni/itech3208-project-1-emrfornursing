@@ -1,4 +1,4 @@
-using EMRSimulation.Application.Services;
+﻿using EMRSimulation.Application.Services;
 using EMRSimulation.Domain.Dtos;
 using EMRSimulationWebApp.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -229,14 +229,17 @@ namespace EMRSimulationWebApp.Controllers
             // Sprint 3 guard. LabId 0 means the supervisor is in module mode. The
             // InsertPatient procedure has no @ModuleId, so a row created here would
             // land with LabId 0 and ModuleId NULL - belonging to no campus and no
-            // module, and therefore invisible in every list. Naomi's brief describes
-            // one patient per laboratory scenario, and InsertModule already creates
-            // that patient, so there is nothing legitimate to add here.
+            // module, and therefore invisible in every list.
+            //
+            // Modules are created with their five blank patients by InsertModule, so
+            // there is still nothing to add here. The count is a parameter on that
+            // procedure rather than a fixed five, if the client wants a different
+            // number later.
             if (addsDto.Id == 0 && addsDto.LabId <= 0)
             {
                 return BadRequest(
-                    "A module already contains its patient. Open the module and edit " +
-                    "the existing patient record instead of adding a new one.");
+                    "A module is created with its patients already in place. Open the " +
+                    "module and edit one of them instead of adding a new record.");
             }
 
             try
@@ -253,10 +256,10 @@ namespace EMRSimulationWebApp.Controllers
 
         public async Task<IActionResult> DeletePatient(int labId, int Id)
         {
-            // Sprint 3 guard. A module owns exactly one patient, and that patient is
-            // the module's entire EMR structure. Deleting it would leave a module that
-            // renders an empty list and can never be repopulated. Removing the module
-            // is the supported route - DeleteModule cascades the patient and charts.
+            // Sprint 3 guard. A module's patients are its EMR structure, and there is
+            // no route to add one back - InsertPatient cannot set ModuleId. Deleting
+            // one would leave a module permanently short. Removing the module is the
+            // supported route; DeleteModule cascades the patients and their charts.
             if (labId <= 0)
             {
                 return BadRequest(

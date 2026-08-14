@@ -195,8 +195,12 @@
                     <div class="col-sm-7">
                         <select id="ddlO2Flow">
                             <option value="" data-color="#FFFFFF" data-score="" class="white"></option>
-                            <option value=">= 13" data-color="#FFA500" data-score="3" class="orange">>= 13</option>
-                            <option value="10-12" data-color="#FFDBBB" data-score="2" class="lightorange">10-12</option>
+                            @* Client confirmed 12 L/min and above scores 3, so the
+                               boundary sits at 12, not 13. The finer 4-6 and <=3
+                               options below are kept: both score 0, and they let a
+                               nurse record what was actually running. *@
+                            <option value=">= 12" data-color="#FFA500" data-score="3" class="orange">>= 12</option>
+                            <option value="10-11" data-color="#FFDBBB" data-score="2" class="lightorange">10-11</option>
                             <option value="7-9" data-color="#FFFF00" data-score="1" class="yellow">7-9</option>
                             <option value="4-6" data-color="#FFFFFF" data-score="0" class="white">4-6</option>
                             <option value="<=3" data-color="#FFFFFF" data-score="0" class="white"><=3</option>
@@ -535,10 +539,13 @@
     {
     name: "O2 Flow Rate(L/min)",
     range: {
-        "Orange Zone": ">= 13",
-        "Light Orange Zone": "10 - 12",
-        "Yellow Zone": "93 - 94",
-        "White Zone": "95 - 100"
+        /* Yellow and white previously read "93 - 94" and "95 - 100" - oxygen
+           SATURATION percentages, copied from the row above. A student opening
+           this reference saw saturation values labelled as flow rates. */
+        "Orange Zone": ">= 12",
+        "Light Orange Zone": "10 - 11",
+        "Yellow Zone": "7 - 9",
+        "White Zone": "0 - 6"
     },
     actions: {
         "Orange Zone": "Score 3, 4 & 5",
@@ -659,6 +666,47 @@ $('.data-label').on('click', function() {
         });
 
 
+        /* ------------------------------------------------------------------
+           ADDS colour coding
+
+           The client asked for the score cells to be shaded, not just totalled.
+           Every dropdown option already carries its ADDS zone in data-color, so
+           each vital sign is coloured from the option the user picked - the
+           colours come from the chart itself rather than a second mapping that
+           could drift from it.
+
+           Purple needs white text to stay readable; the other four zones are
+           light enough for black.
+           ------------------------------------------------------------------ */
+        var ADDS_PURPLE = '#A020F0';
+
+        function paintScore(selector, score, color) {
+            var cell = $(selector);
+            cell.html(score);
+
+            if (!color || score === '' || score === null || typeof score === 'undefined') {
+                cell.css({ 'background-color': '', 'color': '' });
+                return;
+            }
+
+            cell.css({
+                'background-color': color,
+                'color': color.toUpperCase() === ADDS_PURPLE ? '#FFFFFF' : '#000000'
+            });
+        }
+
+        /* Total ADDS bands, from the escalation table on the chart:
+           0 routine, 1-3 inform senior nurse, 4-5 nurse or junior MO review,
+           6-7 senior MO review, 8+ emergency call. Shaded with the same five
+           zones so the total reads consistently with the rows above it. */
+        function totalZoneColour(total) {
+            if (total >= 8) return ADDS_PURPLE;   /* emergency call */
+            if (total >= 6) return '#FFA500';     /* orange */
+            if (total >= 4) return '#FFDBBB';     /* light orange */
+            if (total >= 1) return '#FFFF00';     /* yellow */
+            return '#FFFFFF';                     /* white - routine */
+        }
+
         var RespiratoryAlert = 0;
         var OxygenSaturationAlert = 0;
         var BloodPressureAlert = 0;
@@ -680,7 +728,7 @@ $('.data-label').on('click', function() {
 
             // Change the background color of the color box
             document.getElementById('colorBoxRespiratory').style.backgroundColor = color;
-            $(".respiratoryscore").html(score);
+            paintScore(".respiratoryscore", score, color);
             updateTotalScore();
         });
 
@@ -701,7 +749,7 @@ $('.data-label').on('click', function() {
 
             // Change the background color of the color box
             document.getElementById('colorBoxO2Sat').style.backgroundColor = color;
-            $(".saturationscore").html(score);
+            paintScore(".saturationscore", score, color);
             updateTotalScore();
         });
 
@@ -714,7 +762,7 @@ $('.data-label').on('click', function() {
 
             // Change the background color of the color box
             document.getElementById('colorBoxO2Flow').style.backgroundColor = color;
-            $(".flowratescore").html(score);
+            paintScore(".flowratescore", score, color);
             updateTotalScore();
         });
 
@@ -731,7 +779,7 @@ $('.data-label').on('click', function() {
             if (na) {
                 $('#ddlO2Flow').val("");
                 document.getElementById('colorBoxO2Flow').style.backgroundColor = "#FFFFFF";
-                $(".flowratescore").html("0");
+                paintScore(".flowratescore", "0", "#FFFFFF");
                 updateTotalScore();
             } else {
                 document.getElementById('ddlO2Flow').dispatchEvent(new Event('change'));
@@ -753,7 +801,7 @@ $('.data-label').on('click', function() {
 
             // Change the background color of the color box
             document.getElementById('colorBoxBpRate').style.backgroundColor = color;
-            $(".bpscore").html(score);
+            paintScore(".bpscore", score, color);
             updateTotalScore();
         });
 
@@ -792,7 +840,7 @@ $('.data-label').on('click', function() {
 
             // Change the background color of the color box
             document.getElementById('colorBoxHeartRate').style.backgroundColor = color;
-            $(".heartratescore").html(score);
+            paintScore(".heartratescore", score, color);
             updateTotalScore();
         });
 
@@ -813,7 +861,7 @@ $('.data-label').on('click', function() {
 
             // Change the background color of the color box
             document.getElementById('colorBoxTemperatureC').style.backgroundColor = color;
-            $(".temperaturescore").html(score);
+            paintScore(".temperaturescore", score, color);
             updateTotalScore();
         });
 
@@ -826,7 +874,7 @@ $('.data-label').on('click', function() {
 
             // Change the background color of the color box
             document.getElementById('colorBoxConsciousness').style.backgroundColor = color;
-            $(".consciousnessscore").html(score);
+            paintScore(".consciousnessscore", score, color);
             updateTotalScore();
         });
 
@@ -872,7 +920,7 @@ $('.data-label').on('click', function() {
             }
             
             var totalScore = respiratoryScore + saturationScore + flowratescore + bpscore + heartratescore + temperaturescore + consciousnessscore;
-            $(".totaladdsscore").html(totalScore);
+            paintScore(".totaladdsscore", totalScore, totalZoneColour(totalScore));
         }
 
         $("#btnSave").on("click", function (e) {
