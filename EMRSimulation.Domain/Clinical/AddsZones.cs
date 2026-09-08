@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace EMRSimulation.Domain.Clinical
@@ -6,18 +6,13 @@ namespace EMRSimulation.Domain.Clinical
     /// <summary>
     /// The ADDS scoring zones, in one place.
     ///
-    /// The ADDS chart entry form shades each observation from the data-color
-    /// attribute on the option the user picked. The observation list has no such
-    /// attribute to read - it only has the stored text - so it looks the colour up
-    /// here instead. Both screens must agree, or the same reading would appear in
-    /// two different zones depending on which screen a nurse was looking at.
+    /// The chart entry form shades from the data-color attribute on the option picked;
+    /// the observation list has only the stored text, so it looks the colour up here.
+    /// Both must agree or the same reading shows in two different zones. Generated from
+    /// the options in _patientAddsChart.cshtml; Tools/check-adds-zones.py re-compares
+    /// them and fails on drift.
     ///
-    /// This table was generated from the option lists in _patientAddsChart.cshtml,
-    /// so the two start out identical. Tools/check-adds-zones.py re-compares them
-    /// and fails if the view is edited without updating this file.
-    ///
-    /// Mode of delivery and diastolic blood pressure are deliberately absent:
-    /// neither is scored by ADDS, so neither is ever shaded.
+    /// Mode of delivery and diastolic pressure are absent - ADDS does not score them.
     /// </summary>
     public static class AddsZones
     {
@@ -138,7 +133,7 @@ namespace EMRSimulation.Domain.Clinical
 
         /// <summary>
         /// Zone for the ADDS total. Eight or above is the emergency call threshold
-        /// (Australian Commission on Safety and Quality in Health Care, 2021).
+        /// (ACSQHC, 2021).
         /// </summary>
         public static string TotalColour(int total)
         {
