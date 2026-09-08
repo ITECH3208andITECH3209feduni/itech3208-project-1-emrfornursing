@@ -19,6 +19,7 @@
             <th>Unit</th>
             <th>Module</th>
             <th>Patients</th>
+            <th>Students</th>
             <th>Last Updated</th>
             <th></th>
             <th></th>
@@ -49,16 +50,27 @@
                     <div class="small labLoadStatus" data-module-id="@m.Id"></div>
                 </td>
                 <td>@m.PatientCount</td>
+                <td>
+                    @if (canManage)
+                    {
+                        @* Opens a per-lab panel. Visibility belongs to a module's
+                           presence in one lab, not to the module: campuses run their
+                           own timetables, so hiding a scenario at Berwick must not
+                           hide it at Gippsland. *@
+                        <a href="javascript:void(0);" class="btn btn-emr btn-sm moduleVisibility"
+                           data-custom="@m.Id">Visibility</a>
+                    }
+                </td>
                 <td>@((m.UpdatedDate ?? m.CreatedDate).ToString("yyyy-MM-dd"))</td>
                 <td>
-                    <a href="javascript:void(0);" class="btn btn-primary btn-sm openModule"
-                       data-custom="@m.Id" style="background-color:#FF8A30;">Open</a>
+                    <a href="javascript:void(0);" class="btn btn-emr btn-sm openModule"
+                       data-custom="@m.Id">Open</a>
                 </td>
                 <td>
                     @if (canManage)
                     {
-                        <a href="javascript:void(0);" class="btn btn-primary btn-sm copyModule"
-                           data-custom="@m.Id" style="background-color:#FF8A30;">Copy</a>
+                        <a href="javascript:void(0);" class="btn btn-emr btn-sm copyModule"
+                           data-custom="@m.Id">Copy</a>
                     }
                 </td>
                 <td>
@@ -66,15 +78,15 @@
                     {
                         @* Loading replaces any previous copy in this lab, so the
                            label changes to Reload once one exists. Set below. *@
-                        <a href="javascript:void(0);" class="btn btn-success btn-sm loadIntoLab"
+                        <a href="javascript:void(0);" class="btn btn-emr btn-sm loadIntoLab"
                            data-custom="@m.Id">Load into lab</a>
                     }
                 </td>
                 <td>
                     @if (canManage)
                     {
-                        <a href="javascript:void(0);" class="btn btn-primary btn-sm renameModule"
-                           data-custom="@m.Id" style="background-color:#FF8A30;">Rename</a>
+                        <a href="javascript:void(0);" class="btn btn-emr btn-sm renameModule"
+                           data-custom="@m.Id">Rename</a>
                         <a href="javascript:void(0);" class="btn btn-danger btn-sm deleteModule"
                            data-custom="@m.Id">Delete</a>
                     }
@@ -90,7 +102,7 @@
     // never freeze an academic mid-class.
     if ($.fn.dataTable) { $.fn.dataTable.ext.errMode = 'none'; }
 
-    $('#moduleTable').on('error.dt', function (e, settings, techNote, message) {
+    var moduleTable = $('#moduleTable').on('error.dt', function (e, settings, techNote, message) {
         console.error('DataTables error on #moduleTable:', message);
     }).DataTable({
         "paging": true,
@@ -104,8 +116,86 @@
         },
         "columnDefs": [
             { "targets": [0], "visible": false },
-            { "targets": [6, 7, 8, 9], "orderable": false }
+            { "targets": [7, 8, 9, 10], "orderable": false }
         ]
+    });
+
+    // --- per-lab student visibility -------------------------------------------
+    // Shown as a DataTables child row rather than a modal: the panel belongs to the
+    // module it expands, and row.child() survives paging and redraws.
+    function visibilityPanel(moduleId, labs) {
+        if (!labs.length) {
+            return '<div class="visibility-panel text-muted small">' +
+                   'This module is not loaded into any laboratory yet, so there is ' +
+                   'nothing for students to see. Use Load into lab first.</div>';
+        }
+
+        var html = '<div class="visibility-panel">';
+
+        labs.forEach(function (l) {
+            var when = l.loadedAt
+                ? new Date(l.loadedAt).toLocaleDateString() + ' ' +
+                  new Date(l.loadedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                : 'earlier';
+
+            html += '<label class="module-visibility">' +
+                    '<input type="checkbox" class="toggleLabVisibility"' +
+                        ' data-module="' + moduleId + '"' +
+                        ' data-lab="' + l.labId + '"' +
+                        (l.visibleToStudents ? ' checked' : '') + ' />' +
+                    '<span class="visibility-lab">' + $('<div>').text(l.labName).html() + '</span>' +
+                    '<span class="text-muted small">' + l.patientCount + ' patient(s), loaded ' + when + '</span>' +
+                    '</label>';
+        });
+
+        return html + '</div>';
+    }
+
+    $(document).off('click.modvis').on('click.modvis', '.moduleVisibility', function () {
+        var moduleId = parseInt($(this).attr('data-custom'), 10);
+        var row      = moduleTable.row($(this).closest('tr'));
+
+        if (row.child.isShown()) { row.child.hide(); return; }
+
+        $.ajax({
+            url: '/module/getmodulelabvisibility',
+            method: 'GET',
+            data: { moduleId: moduleId },
+            success: function (labs) {
+                row.child(visibilityPanel(moduleId, labs || [])).show();
+            },
+            error: function (xhr) {
+                console.error('Could not read module visibility:', xhr.status);
+            }
+        });
+    });
+
+    // The checkbox follows what the server confirms, not what was clicked, so a
+    // refused or failed request leaves the control showing the truth.
+    $(document).off('change.modvis').on('change.modvis', '.toggleLabVisibility', function () {
+        var $box   = $(this);
+        var wanted = $box.is(':checked');
+
+        $box.prop('disabled', true);
+
+        $.ajax({
+            url: '/module/setmodulelabvisibility',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                ModuleId: parseInt($box.attr('data-module'), 10),
+                LabId: parseInt($box.attr('data-lab'), 10),
+                VisibleToStudents: wanted
+            }),
+            success: function (res) { $box.prop('checked', res.visibleToStudents); },
+            error: function (xhr) {
+                $box.prop('checked', !wanted);   // put it back
+                console.error(xhr.status === 403
+                    ? 'Only a Supervisor login can change module visibility.'
+                    : 'The module visibility could not be changed.');
+            },
+            complete: function () { $box.prop('disabled', false); }
+        });
     });
 
     // Which of these modules already sit in this supervisor's lab. Runs on every

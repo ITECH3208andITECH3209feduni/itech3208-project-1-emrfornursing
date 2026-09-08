@@ -166,6 +166,54 @@ namespace EMRSimulation.Infrastructure.Repositories
            modules
            ------------------------------------------------------------------ */
 
+        /// <summary>
+        /// Every lab holding a copy of this module, with whether its students can
+        /// see it. Only labs that actually hold a copy come back.
+        /// </summary>
+        public async Task<IEnumerable<ModuleLabVisibilityDto>> GetModuleLabVisibilityAsync(int moduleId)
+        {
+            var rows = new List<ModuleLabVisibilityDto>();
+
+            using (var connection = await _dbConnectionFactory.CreateAsync())
+            using (var command = (SqlCommand)connection.CreateCommand())
+            {
+                command.CommandText = "GetModuleLabVisibility";
+                command.CommandType = CommandType.StoredProcedure;
+                command.Parameters.Add(new SqlParameter("@ModuleId", moduleId));
+
+                using (var reader = await command.ExecuteReaderAsync())
+                {
+                    while (await reader.ReadAsync())
+                    {
+                        rows.Add(new ModuleLabVisibilityDto
+                        {
+                            Id                = reader.GetInt32(reader.GetOrdinal("LabId")),
+                            LabName           = Str(reader, "LabName"),
+                            PatientCount      = reader.GetInt32(reader.GetOrdinal("PatientCount")),
+                            HiddenCount       = reader.GetInt32(reader.GetOrdinal("HiddenCount")),
+                            VisibleToStudents = reader.GetBoolean(reader.GetOrdinal("VisibleToStudents")),
+                            LoadedIntoLabAt   = NullableDate(reader, "LoadedIntoLabAt")
+                        });
+                    }
+                }
+            }
+
+            return rows;
+        }
+
+        /// <summary>
+        /// Show or hide one module's loaded patients from students in one lab.
+        /// Returns the number of patient rows changed; zero means that module is
+        /// not loaded into that lab.
+        /// </summary>
+        public Task<int> SetModuleLabVisibilityAsync(int moduleId, int labId, bool visibleToStudents)
+            => ExecuteScalarIntAsync("SetModuleLabVisibility", cmd =>
+            {
+                cmd.Parameters.Add(new SqlParameter("@ModuleId", moduleId));
+                cmd.Parameters.Add(new SqlParameter("@LabId", labId));
+                cmd.Parameters.Add(new SqlParameter("@VisibleToStudents", visibleToStudents));
+            });
+
         private static ModuleDto ReadModule(SqlDataReader reader) => new ModuleDto
         {
             Id                    = reader.GetInt32(reader.GetOrdinal("Id")),

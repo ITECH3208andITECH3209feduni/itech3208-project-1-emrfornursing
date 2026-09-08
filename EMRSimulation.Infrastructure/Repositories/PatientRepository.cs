@@ -1,4 +1,4 @@
-using EMRSimulation.Application.Interfaces;
+﻿using EMRSimulation.Application.Interfaces;
 using EMRSimulation.Domain.Dtos;
 using EMRSimulation.Infrastructure.Connection;
 using EMRSimulation.Infrastructure.Repositories;
@@ -23,7 +23,7 @@ namespace EMRSimulation.Infrastructure.Repositories
             _dbConnectionFactory = dbConnectionFactory;
         }
 
-        public async Task<PatientDto> GetPatientById(int Id, int labId)
+        public async Task<PatientDto> GetPatientById(int Id, int labId, bool includeHiddenModules = true)
         {
             var patient = new PatientDto();
 
@@ -39,6 +39,10 @@ namespace EMRSimulation.Infrastructure.Repositories
                     // Add parameters to the command
                     command.Parameters.Add(new SqlParameter("@Id", Id));
                     command.Parameters.Add(new SqlParameter("@LabId", labId));
+
+                    // A student must not reach a hidden module's patient by id either.
+                    // Filtering only the list would have left the record fetchable.
+                    command.Parameters.Add(new SqlParameter("@IncludeHiddenModules", includeHiddenModules));
 
                     // Execute the stored procedure and read the results asynchronously
                     using (var reader = await command.ExecuteReaderAsync())
@@ -71,7 +75,7 @@ namespace EMRSimulation.Infrastructure.Repositories
 
             return patient;
         }
-        public async Task<IEnumerable<PatientDto>> GetAllPatientsAsync(int labId)
+        public async Task<IEnumerable<PatientDto>> GetAllPatientsAsync(int labId, bool includeHiddenModules = true)
         {
             var patients = new List<PatientDto>();
 
@@ -86,6 +90,11 @@ namespace EMRSimulation.Infrastructure.Repositories
 
                     // Add parameters to the command
                     command.Parameters.Add(new SqlParameter("@LabId", labId));
+
+                    // A student never sees the patients of a module an academic has
+                    // hidden. Enforced in the procedure, not here, so the rows are
+                    // never sent to the browser in the first place.
+                    command.Parameters.Add(new SqlParameter("@IncludeHiddenModules", includeHiddenModules));
 
                     // Execute the stored procedure and read the results asynchronously
                     using (var reader = await command.ExecuteReaderAsync())

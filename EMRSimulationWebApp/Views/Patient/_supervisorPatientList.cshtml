@@ -1,4 +1,4 @@
-@{
+﻿@{
     ViewData["Title"] = "Patient List";
 
     // Sprint 3. ModuleController sets this when listing a module's patient. A module
@@ -36,7 +36,7 @@
                     <td>@patient.Gender</td>
                     <td>@patient.AdmitDate?.ToString("yyyy-MM-dd")</td>
                     <td>
-                        <a href="javascript:void(0);" class="btn btn-primary clearPatientData" data-custom="@patient.Id" style="background-color:#FF8A30;">Clear Records</a>
+                        <a href="javascript:void(0);" class="btn btn-danger clearPatientData" data-custom="@patient.Id">Clear Records</a>
                     </td>
                     <td>
                         @if (moduleMode)
@@ -45,7 +45,7 @@
                         }
                         else
                         {
-                            <a href="javascript:void(0);" class="btn btn-primary deletePatientData" data-custom="@patient.Id" style="background-color:#FF8A30;">Delete Patient</a>
+                            <a href="javascript:void(0);" class="btn btn-danger deletePatientData" data-custom="@patient.Id">Delete Patient</a>
                         }
                     </td>
                 </tr>

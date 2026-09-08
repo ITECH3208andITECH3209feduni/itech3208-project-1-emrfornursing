@@ -30,6 +30,15 @@ namespace EMRSimulation.Application.Interfaces
         Task<ModuleDto?> GetModuleByIdAsync(int moduleId);
         Task<int> InsertModuleAsync(ModuleDto dto, int? createdBySupervisorId, bool createBlankPatient = true);
         Task<int> UpdateModuleAsync(ModuleDto dto);
+
+        /// <summary>Every lab holding a copy of this module, with its student visibility.</summary>
+        Task<IEnumerable<ModuleLabVisibilityDto>> GetModuleLabVisibilityAsync(int moduleId);
+
+        /// <summary>
+        /// Show or hide one module's loaded patients from students in one lab.
+        /// Returns the number of patient rows changed.
+        /// </summary>
+        Task<int> SetModuleLabVisibilityAsync(int moduleId, int labId, bool visibleToStudents);
         Task<int> CopyModuleAsync(int sourceModuleId, string newModuleName, int targetUnitId,
                                   string? description, int? createdBySupervisorId);
 

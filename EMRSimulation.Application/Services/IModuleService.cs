@@ -25,6 +25,12 @@ namespace EMRSimulation.Application.Services
         Task<int> AddModuleAsync(ModuleDto dto, int? createdBySupervisorId, bool createBlankPatient = true);
 
         Task<int> RenameModuleAsync(int moduleId, string newName, string? description);
+
+        /// <summary>Every lab holding a copy of this module, with its student visibility.</summary>
+        Task<IEnumerable<ModuleLabVisibilityDto>> GetModuleLabVisibilityAsync(int moduleId);
+
+        /// <summary>Show or hide one module's loaded patients from students in one lab.</summary>
+        Task<int> SetModuleLabVisibilityAsync(int moduleId, int labId, bool visibleToStudents);
         Task<int> CopyModuleAsync(int sourceModuleId, string newModuleName, int targetUnitId,
                                   string? description, int? createdBySupervisorId);
         Task<IEnumerable<(string TableName, int RowsDeleted)>> DeleteModuleAsync(int moduleId);

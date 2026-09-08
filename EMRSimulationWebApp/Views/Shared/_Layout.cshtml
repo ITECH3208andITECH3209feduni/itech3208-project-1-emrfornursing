@@ -57,15 +57,12 @@
                         <a href="javascript:void(0);" class="nav-link text-light load-patient-list" data-url="@Url.Action("GetPatientList", "Patient")">Patient List</a>
                     </li>
 
-                    @* Sprint 3 - students select their year level and module here.
-                       The supervisor entry lives under Settings; this one is the
-                       read-only route for the student role. *@
-                    @if (!User.HasClaim(c => c.Value == "supervisor"))
-                    {
-                        <li class="nav-item">
-                            <a href="javascript:void(0);" class="nav-link text-light load-module-repository" data-url="@Url.Action("GetModuleRepository", "Module")">Module Repository</a>
-                        </li>
-                    }
+                        @* The module repository is a Supervisor View feature. Students
+                           had a read-only entry here, but the client asked for it to be
+                           removed: they reach module content through the ordinary patient
+                           screens once an academic loads a module into their lab. The read
+                           endpoints are gated too - hiding a menu item would not stop
+                           anyone typing the URL. *@
 
                     <li id="togglePolicyMenu">
                         <button id="togglePolicy" class="menu-btn" type="button">
