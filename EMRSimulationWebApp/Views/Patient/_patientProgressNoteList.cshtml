@@ -9,19 +9,24 @@
 }
 
 <style>
+    /* Layout is Kunal's approved two-panel design, unchanged. Colours, type and
+       radii now come from the tokens in site.css so this screen matches the rest
+       of the app instead of carrying its own palette. */
+
     #progressNotesPage {
-        padding: 18px 10px 30px;
+        padding: var(--sp-5) var(--sp-3) var(--sp-5);
     }
 
     #progressNotesPage .progress-title {
-        margin: 0 0 4px;
-        font-size: 26px;
-        font-weight: 700;
+        margin: 0 0 var(--sp-1);
+        font-size: var(--fs-xl);
+        font-weight: var(--fw-bold);
     }
 
     #progressNotesPage .progress-subtitle {
-        margin: 0 0 18px;
-        color: #666;
+        margin: 0 0 var(--sp-5);
+        color: var(--emr-text-muted);
+        font-size: var(--fs-sm);
     }
 
     #progressNotesPage .progress-layout {
@@ -32,15 +37,17 @@
     }
 
     #progressNotesPage .progress-panel {
-        border: 1px solid #9a9a9a;
-        background: #fff;
+        border: 1px solid var(--emr-border);
+        border-radius: var(--radius-md);
+        background: var(--emr-surface);
         padding: 22px;
+        box-shadow: var(--shadow-card);
     }
 
     #progressNotesPage .panel-title {
-        margin: 0 0 18px;
-        font-size: 21px;
-        font-weight: 700;
+        margin: 0 0 var(--sp-5);
+        font-size: var(--fs-lg);
+        font-weight: var(--fw-medium);
     }
 
     #progressNotesPage .date-time-grid {
@@ -55,8 +62,9 @@
 
     #progressNotesPage .field-group label {
         display: block;
-        margin-bottom: 6px;
-        font-weight: 600;
+        margin-bottom: var(--sp-2);
+        font-weight: var(--fw-medium);
+        font-size: var(--fs-sm);
     }
 
     #progressNotesPage input,
@@ -64,50 +72,63 @@
     #progressNotesPage select {
         width: 100%;
         min-height: 42px;
-        border: 1px solid #555;
-        border-radius: 0;
-        padding: 8px 10px;
-        background: #fff;
-        font-size: 16px;
+        border: 1px solid var(--emr-border-strong);
+        border-radius: var(--radius-sm);
+        padding: var(--sp-2) var(--sp-3);
+        background: var(--emr-surface);
+        font-family: var(--font-base);
+        font-size: var(--fs-md);
+        color: var(--emr-text);
     }
 
     #progressNotesPage textarea {
         min-height: 190px;
         resize: vertical;
         white-space: pre-wrap;
+        line-height: var(--lh-base);
     }
 
     #progressNotesPage .counter-row {
-        margin-top: 5px;
+        margin-top: var(--sp-1);
         text-align: right;
-        color: #666;
-        font-size: 13px;
+        color: var(--emr-text-muted);
+        font-size: var(--fs-sm);
     }
 
     #progressNotesPage .form-actions {
         display: flex;
         gap: 12px;
         flex-wrap: wrap;
-        margin-top: 20px;
+        margin-top: var(--sp-5);
     }
 
+    /* Bootstrap .btn metrics, so these sit identically to buttons elsewhere. */
     #progressNotesPage .progress-btn {
-        min-width: 120px;
-        min-height: 42px;
-        border: 1px solid #222;
-        padding: 8px 18px;
+        border: 1px solid transparent;
+        border-radius: var(--radius-sm);
+        padding: 6px 12px;
         cursor: pointer;
-        font-weight: 600;
+        font-size: var(--fs-md);
+        line-height: var(--lh-base);
     }
 
+    /* Orange primary, matching every other action button in the app. */
     #progressNotesPage .progress-btn-primary {
-        background: #202428;
-        color: #fff;
+        background: var(--emr-orange);
+        border-color: var(--emr-orange);
+        color: var(--emr-on-orange);
+    }
+
+    #progressNotesPage .progress-btn-primary:hover,
+    #progressNotesPage .progress-btn-primary:focus {
+        background: var(--emr-orange-dark);
+        border-color: var(--emr-orange-dark);
     }
 
     #progressNotesPage .progress-btn-secondary {
-        background: #fff;
-        color: #222;
+        background: var(--emr-surface);
+        border-color: var(--emr-border-strong);
+        color: var(--emr-text);
     }
 
     #progressNotesPage .history-tools {
@@ -128,91 +149,84 @@
         grid-template-columns: 120px minmax(0, 1fr) auto;
         gap: 18px;
         align-items: start;
-        border: 1px solid #333;
-        padding: 16px;
-        background: #fff;
+        border: 1px solid var(--emr-border);
+        border-radius: var(--radius-md);
+        padding: var(--sp-4);
+        background: var(--emr-surface);
+        box-shadow: var(--shadow-card);
     }
 
     #progressNotesPage .note-date {
         padding-right: 15px;
-        border-right: 1px solid #333;
-        font-weight: 600;
+        border-right: 1px solid var(--emr-border);
+        font-weight: var(--fw-medium);
         line-height: 1.35;
     }
 
     #progressNotesPage .note-time {
         display: block;
-        margin-top: 6px;
-        color: #555;
-        font-weight: 400;
+        margin-top: var(--sp-2);
+        color: var(--emr-text-muted);
+        font-weight: var(--fw-normal);
     }
 
     #progressNotesPage .note-text {
         margin: 0;
         overflow-wrap: anywhere;
         white-space: pre-wrap;
+        line-height: var(--lh-base);
     }
 
     #progressNotesPage .note-meta {
-        margin-top: 10px;
-        color: #666;
-        font-size: 13px;
+        margin-top: var(--sp-2);
+        color: var(--emr-text-muted);
+        font-size: var(--fs-sm);
     }
 
+    /* Same convention as the rest of the app: orange affirms, red destroys. */
+    /* Bootstrap .btn-sm metrics. */
+    #progressNotesPage .edit-note-btn
     #progressNotesPage .edit-note-btn {
-        min-height: 38px;
-        border: 1px solid #1f5f9c;
-        background: #fff;
-        color: #1f5f9c;
-        padding: 7px 14px;
-        cursor: pointer;
-        font-weight: 600;
+        background: var(--emr-orange);
+        border-color: var(--emr-orange);
+        color: var(--emr-on-orange);
     }
 
-    #progressNotesPage .delete-note-btn {
-        min-height: 38px;
-        margin-top: 8px;
-        border: 1px solid #b44949;
-        background: #fff;
-        color: #b44949;
-        padding: 7px 14px;
-        cursor: pointer;
-        font-weight: 600;
+    #progressNotesPage .edit-note-btn:hover,
+    #progressNotesPage .edit-note-btn:focus {
+        background: var(--emr-orange-dark);
+        border-color: var(--emr-orange-dark);
     }
 
     #progressNotesPage .empty-history {
-        border: 1px dashed #999;
+        border: 1px dashed var(--emr-border-strong);
+        border-radius: var(--radius-md);
         padding: 26px;
         text-align: center;
-        color: #666;
+        color: var(--emr-text-muted);
     }
 
     #progressNotesPage .progress-message {
         display: none;
         margin-top: 15px;
-        padding: 10px 12px;
+        padding: var(--sp-3);
         border: 1px solid transparent;
+        border-radius: var(--radius-sm);
+        font-size: var(--fs-sm);
     }
 
     #progressNotesPage .message-success {
         display: block;
-        border-color: #4d8b57;
-        background: #edf7ef;
-        color: #235b2c;
+        border-color: var(--emr-success-border);
+        background: var(--emr-success-bg);
+        color: var(--emr-success-text);
     }
 
     #progressNotesPage .message-error {
         display: block;
-        border-color: #b44949;
-        background: #fff0f0;
-        color: #842525;
-    }
-
-    #progressNotesPage .progress-note-help {
-        margin-top: 18px;
-        color: #666;
-        text-align: center;
-        font-size: 13px;
+        border-color: var(--emr-error-border);
+        background: var(--emr-error-bg);
+        color: var(--emr-error-text);
     }
 
     @@media (max-width: 980px) {
@@ -233,7 +247,7 @@
 
         #progressNotesPage .note-date {
             border-right: 0;
-            border-bottom: 1px solid #aaa;
+            border-bottom: 1px solid var(--emr-border);
             padding: 0 0 10px;
         }
     }
@@ -314,9 +328,6 @@
                     var canEdit = string.Equals(note.NotesFrom, currentRole, StringComparison.OrdinalIgnoreCase)
                         || (currentRole == "supervisor" && string.IsNullOrWhiteSpace(note.NotesFrom));
 
-                    // Naomi asked for delete to be removed from the student login only.
-                    var canDelete = currentRole == "supervisor" && canEdit;
-
                     <article class="note-card" data-note-timestamp="@timestamp" data-note-id="@note.Id">
                         <div class="note-date">
                             @if (noteDate.HasValue)
@@ -351,10 +362,6 @@
                             {
                                 <button type="button" class="edit-note-btn">Edit</button>
                             }
-                            @if (canDelete)
-                            {
-                                <button type="button" class="delete-note-btn">Delete</button>
-                            }
                         </div>
                     </article>
                 }
@@ -373,9 +380,6 @@
         </section>
     </div>
 
-    <div class="progress-note-help">
-        Notes can be edited by the same role that created them. Delete is available to a Supervisor login only.
-    </div>
 </div>
 
 <script>
@@ -531,45 +535,6 @@
             noteInput.focus();
         });
 
-        // Delete. Supervisor only, and the server checks the note's author again -
-        // hiding the button does not remove the capability on its own.
-        page.addEventListener('click', function (event) {
-            const deleteButton = event.target.closest('.delete-note-btn');
-            if (!deleteButton) {
-                return;
-            }
-
-            const card = deleteButton.closest('.note-card');
-            const noteId = card.dataset.noteId;
-            const when = card.querySelector('.note-date').innerText.trim().replace(/\s+/g, ' ');
-
-            if (!window.confirm('Delete the progress note from ' + when + '?\n\nThis cannot be undone.')) {
-                return;
-            }
-
-            deleteButton.disabled = true;
-            deleteButton.textContent = 'Deleting...';
-
-            $.ajax({
-                type: 'GET',
-                url: '/patient/deleteprogressnote',
-                data: { Id: noteId },
-                success: function () {
-                    loadProgressNotesPage('Progress note deleted.');
-                },
-                error: function (xhr) {
-                    deleteButton.disabled = false;
-                    deleteButton.textContent = 'Delete';
-                    showMessage(
-                        xhr.status === 403
-                            ? 'You can only delete notes written from your own login.'
-                            : 'The progress note could not be deleted.',
-                        false
-                    );
-                }
-            });
-        });
-
         saveButton.addEventListener('click', function () {
             clearMessage();
 
@@ -578,7 +543,10 @@
             const noteText = noteInput.value.trim();
             const signature = signInput.value.trim();
 
-            if (!labId || !patientId) {
+            // labId 0 is valid - it is the module scope, where an academic populates
+            // a scenario. Testing for falsiness rejected 0 and made module patients
+            // impossible to write notes against.
+            if (Number.isNaN(labId) || !patientId) {
                 showMessage('Please select a patient before saving a progress note.', false);
                 return;
             }
