@@ -33,8 +33,8 @@
     @if (canEdit)
     {
         <text>
-            A module holds five patients. Select one to open its charts, or Edit to change
-            its details. Everything saved here belongs to this module and is shared with
+            This module holds @Model.Patients.Count() patients. Select one to open its charts,
+                    or Edit to change its details. Everything saved here belongs to this module and is shared with
             every campus.
         </text>
     }
@@ -61,6 +61,14 @@
         <tbody>
             @foreach (var p in Model.Patients)
             {
+                // "Patient 2" must sort before "Patient 10". Zero-padded so a plain
+                // string sort is numeric; real surnames still sort as text.
+                // Declared here rather than inline in the attribute: nested quotes
+                // inside an attribute value silently break it.
+                var lastNameSortKey = int.TryParse(p.LastName, out var lastNameNumber)
+                    ? lastNameNumber.ToString("D6")
+                    : p.LastName;
+
                 <tr data-patient-id="@p.Id"
                     data-first="@p.FirstName" data-last="@p.LastName"
                     data-uri="@p.UriNumber" data-dob="@p.DateOfBirth?.ToString("yyyy-MM-dd")"
@@ -71,17 +79,17 @@
                     <td>@p.Id</td>
                     <td>@p.UriNumber</td>
                     <td>@p.FirstName</td>
-                    <td>@p.LastName</td>
+                    <td data-order="@lastNameSortKey">@p.LastName</td>
                     <td>@p.DateOfBirth?.ToString("yyyy-MM-dd")</td>
                     <td>@p.Gender</td>
                     <td>@p.AdmitDate?.ToString("yyyy-MM-dd")</td>
                     <td>
-                        <a href="javascript:void(0);" class="btn btn-primary btn-sm selectModulePatient"
-                           style="background-color:#FF8A30;">Select</a>
+                        <a href="javascript:void(0);" class="btn btn-emr btn-sm selectModulePatient"
+                           >Select</a>
                         @if (canEdit)
                         {
-                            <a href="javascript:void(0);" class="btn btn-primary btn-sm editModulePatient"
-                               style="background-color:#FF8A30;">Edit</a>
+                            <a href="javascript:void(0);" class="btn btn-emr btn-sm editModulePatient"
+                               >Edit</a>
                         }
                     </td>
                 </tr>
@@ -106,8 +114,8 @@
         <div class="col"><strong>Address:</strong> <span id="mpAddress"></span></div>
     </div>
     <div class="mt-3">
-        <a href="javascript:void(0);" id="btnOpenModuleRecords" class="btn btn-primary"
-           style="background-color:#FF8A30;">View patient records</a>
+        <a href="javascript:void(0);" id="btnOpenModuleRecords" class="btn btn-emr"
+           >View patient records</a>
     </div>
 </div>
 
@@ -143,7 +151,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="btnSaveModulePatient" style="background-color:#FF8A30;">Save</button>
+                    <button type="button" class="btn btn-emr" id="btnSaveModulePatient" >Save</button>
                 </div>
             </div>
         </div>
@@ -160,10 +168,14 @@
 
     if ($.fn.dataTable) { $.fn.dataTable.ext.errMode = 'none'; }
     $('#modulePatientTable').DataTable({
-        "paging": false, "info": false, "searching": false, "ordering": false,
+        "paging": false, "info": false, "searching": false, "ordering": true,
+                "order": [[3, "asc"]],
         "autoWidth": false, "lengthChange": false,
         "language": { "emptyTable": "This module has no patient record." },
-        "columnDefs": [{ "targets": [0], "visible": false }]
+        "columnDefs": [
+                    { "targets": [0], "visible": false },
+                    { "targets": [7], "orderable": false }
+                ]
     });
 
     function rowData(el) { return $(el).closest('tr').data(); }
