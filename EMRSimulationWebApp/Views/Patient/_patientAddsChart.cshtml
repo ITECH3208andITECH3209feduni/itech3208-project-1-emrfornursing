@@ -54,22 +54,22 @@
 
     /* Style the individual options based on their value */
     option.purple {
-        background-color: #A020F0;
+        background-color: var(--adds-purple);
         color: white;
     }
 
     option.orange {
-        background-color: #FFA500;
+        background-color: var(--adds-orange);
         color: black;
     }
 
     option.lightorange {
-        background-color: #FFDBBB;
+        background-color: var(--adds-light-orange);
         color: black;
     }
 
     option.yellow {
-        background-color: #FFFF00;
+        background-color: var(--adds-yellow);
         color: black;
     }
 
@@ -87,10 +87,10 @@
         vertical-align: middle;
     }
 
-    .purple-zone { background-color: #A020F0; }
-    .orange-zone { background-color: #FFA500; }
-    .light-orange-zone { background-color: #FFDBBB; }
-    .yellow-zone { background-color: #FFFF00; }
+    .purple-zone { background-color: var(--adds-purple); }
+    .orange-zone { background-color: var(--adds-orange); }
+    .light-orange-zone { background-color: var(--adds-light-orange); }
+    .yellow-zone { background-color: var(--adds-yellow); }
     .white-zone { background-color: #FFFFFF; }
 
 </style>
@@ -335,7 +335,7 @@
                 </div>
 
                 
-                <div class="form-group row" style="background-color:#F2F2F3">
+                <div class="form-group row" style="background-color:var(--emr-page-bg)">
                     @*
                         Escalation guidance as readable text, per the wireframe. This was a
                         scaled-down addsscore.png thumbnail, which was too small to read at
@@ -473,7 +473,7 @@
 
         <div>
             <label id="lblMessage" style="color:green"></label>
-            <button type="button" id="btnSave" class="btn btn-primary" style="background-color:#FF8A30;float: right;">Save</button>
+            <button type="button" id="btnSave" class="btn btn-emr" style="float: right">Save</button>
         </div>
     </div>
 </div>
