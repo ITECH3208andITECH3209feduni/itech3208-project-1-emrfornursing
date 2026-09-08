@@ -1,4 +1,4 @@
-using EMRSimulation.Application.Interfaces;
+﻿using EMRSimulation.Application.Interfaces;
 using EMRSimulation.Domain.Dtos;
 using System;
 using System.Collections.Generic;
@@ -10,8 +10,8 @@ namespace EMRSimulation.Application.Interfaces
 {
     public interface IPatientRepository
     {
-        Task<PatientDto> GetPatientById(int Id, int labId);
-        Task<IEnumerable<PatientDto>> GetAllPatientsAsync(int labId);
+        Task<PatientDto> GetPatientById(int Id, int labId, bool includeHiddenModules = true);
+        Task<IEnumerable<PatientDto>> GetAllPatientsAsync(int labId, bool includeHiddenModules = true);
         Task<int> AddPatientAsync(PatientDto addsDto);
         Task<IEnumerable<AddsDto>> GetPatientAdds(int labId, int patientId);
         Task<int> AddPatientAddsAsync(AddsDto addsDto);

@@ -48,6 +48,12 @@ namespace EMRSimulation.Application.Services
                 ? _moduleRepository.UpdateModuleAsync(dto)
                 : _moduleRepository.InsertModuleAsync(dto, createdBySupervisorId, createBlankPatient);
 
+        public Task<IEnumerable<ModuleLabVisibilityDto>> GetModuleLabVisibilityAsync(int moduleId)
+            => _moduleRepository.GetModuleLabVisibilityAsync(moduleId);
+
+        public Task<int> SetModuleLabVisibilityAsync(int moduleId, int labId, bool visibleToStudents)
+            => _moduleRepository.SetModuleLabVisibilityAsync(moduleId, labId, visibleToStudents);
+
         public async Task<int> RenameModuleAsync(int moduleId, string newName, string? description)
         {
             var existing = await _moduleRepository.GetModuleByIdAsync(moduleId);
