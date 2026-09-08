@@ -21,7 +21,7 @@
     .edit-actions { margin-top:22px; display:flex; justify-content:flex-end; gap:12px; }
     .edit-actions button { padding:9px 18px; border-radius:6px; border:none; font-weight:600; cursor:pointer; }
     #closeEditPatient { background:#e5e7eb; color:#111; }
-    #saveEditPatient { background:#FF8A30; color:#fff; }
+    #saveEditPatient { background:var(--emr-orange); color:#fff; }
 
     /* Marks a patient that was loaded from a module. Supervisor view only -
        students see an ordinary patient list, per Naomi's brief. */
@@ -80,8 +80,8 @@
                     <td>@patient.Address</td>
 
                     <td>
-                        <a href="javascript:void(0);" class="btn btn-primary" style="background-color:#FF8A30;">Select</a>
-                        <a href="javascript:void(0);" class="btn btn-primary edit-patient-btn" style="background-color:#FF8A30;" data-patientid="@patient.Id">Edit</a>
+                        <a href="javascript:void(0);" class="btn btn-emr" >Select</a>
+                        <a href="javascript:void(0);" class="btn btn-emr edit-patient-btn"  data-patientid="@patient.Id">Edit</a>
                     </td>
                 </tr>
             }
@@ -119,7 +119,7 @@
     </div>
 </div>
 
-<button id="btnViewPatientRecords" class="btn btn-primary" style="background-color:#FF8A30;float: right; display:none">View Patient Records</button>
+<button id="btnViewPatientRecords" class="btn btn-emr" style="float: right; display:none">View Patient Records</button>
 
 <div id="editPatientModal" class="edit-patient-modal">
     <div class="edit-patient-box">
@@ -172,10 +172,11 @@
             "ordering": true,
             "autoWidth": false,
             "lengthChange": false,
-            // Five patients per module, and several modules can be loaded into one
-            // lab, so a lab session runs well past ten. The client asked to see all
-            // patients on a single page.
-            "pageLength": 50
+            // Twelve patients per module, and several modules can be loaded into one
+            // lab, so a session runs well past ten - four modules alone is 48 before
+            // the campus's own patients. The client asked to see all patients on a
+            // single page, so this is set well above any realistic lab.
+            "pageLength": 200
             ,
             "columnDefs": [
                 {   "targets": [0,8,9,10,11,12,13],
@@ -184,18 +185,9 @@
             ]
         });
 
-        // Mark patients that were loaded from a module, so an academic can tell at
-        // a glance which ones get replaced the next time that module is loaded.
-        //
-        // Deliberately NOT rendered into the cell by Razor. This table is DOM-sourced,
-        // so DataTables caches each cell's contents at initialisation and the row click
-        // handler reads them positionally - data[3] is the last name and is written
-        // straight into the patient card. Markup added to that cell server-side would
-        // end up inside the patient's displayed name. Appending to the rendered node
-        // afterwards leaves the cached data untouched.
-        //
-        // The endpoint returns an empty array for students, so nothing is drawn on the
-        // student view - they see an ordinary patient list, as Naomi asked.
+        // Badges the patients loaded from a module. Appended after DataTables init,
+        // not rendered by Razor: the table is DOM-sourced, so markup in the cell would
+        // be cached and end up inside the patient's displayed name (data[3]).
         var moduleLoadsByPatient = {};
 
         function applyModuleBadges() {
@@ -222,12 +214,71 @@
             });
         }
 
+        // --- module filter -------------------------------------------------
+        // Several modules can be loaded into one lab at once, so the list can hold
+        // patients from a mix of scenarios plus the campus's own. These toggles let
+        // an academic show one scenario at a time.
+        //
+        // Filtering is done through a DataTables search plugin rather than by hiding
+        // rows, so paging and the row count stay correct.
+        var hiddenModules = {};      // moduleId (or 'campus') -> true when hidden
+
+        function moduleKeyForRow(rowData) {
+            var load = moduleLoadsByPatient[parseInt(rowData[0])];
+            return load ? String(load.moduleId) : 'campus';
+        }
+
+        $.fn.dataTable.ext.search.push(function (settings, rowData) {
+            if (settings.nTable !== table.table().node()) return true;   // other tables unaffected
+            return !hiddenModules[moduleKeyForRow(rowData)];
+        });
+
+        function buildModuleFilter(loads) {
+            var groups = {};
+            (loads || []).forEach(function (l) {
+                var key = String(l.moduleId);
+                if (!groups[key]) groups[key] = { name: l.moduleName || 'Unnamed module', count: 0 };
+                groups[key].count++;
+            });
+
+            var keys = Object.keys(groups);
+            if (!keys.length) return;   // nothing loaded - no need for the control
+
+            var campusCount = table.rows().count() -
+                keys.reduce(function (t, k) { return t + groups[k].count; }, 0);
+
+            var $bar = $('<div>').addClass('module-filter').attr('role', 'group')
+                                 .attr('aria-label', 'Show or hide patients by module');
+            $bar.append($('<strong>').text('Show:'));
+
+            function addToggle(key, label, count) {
+                var id = 'modFilter_' + key;
+                var $wrap = $('<label>').addClass('module-filter-item').attr('for', id);
+                $('<input>').attr({ type: 'checkbox', id: id, checked: true })
+                    .on('change', function () {
+                        hiddenModules[key] = !this.checked;
+                        table.draw();
+                        applyModuleBadges();
+                    }).appendTo($wrap);
+                $wrap.append($('<span>').text(label + ' (' + count + ')'));
+                $bar.append($wrap);
+            }
+
+            keys.sort(function (a, b) { return groups[a].name.localeCompare(groups[b].name); })
+                .forEach(function (k) { addToggle(k, groups[k].name, groups[k].count); });
+
+            if (campusCount > 0) addToggle('campus', 'Campus patients', campusCount);
+
+            $bar.insertBefore($('#patientsTable').closest('.dataTables_wrapper'));
+        }
+
         $.ajax({
             url: '/module/getlabmoduleloads',
             method: 'GET',
             success: function (loads) {
                 (loads || []).forEach(function (l) { moduleLoadsByPatient[l.patientId] = l; });
                 applyModuleBadges();
+                buildModuleFilter(loads);
                 // Paging re-renders rows, so re-apply after every draw.
                 table.on('draw.dt', applyModuleBadges);
             },

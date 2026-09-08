@@ -19,11 +19,23 @@ namespace EMRSimulation.WebApp.Controllers
             _policyRepository = policyRepository;
         }
 
+        /// <summary>
+        /// Supervisors see everything, including modules they have hidden - they have
+        /// to, to prepare them. Students never receive a hidden module's patients,
+        /// from the list or by id.
+        /// </summary>
+        private bool IncludeHiddenModules => User.HasClaim(c => c.Value == "supervisor");
+
         public async Task<IActionResult> GetPatientList(int labId)
         {
             IEnumerable<PatientDto> lstPatients;
 
-            lstPatients = await _patientService.GetAllPatientsAsync(labId);
+            // An academic can stage several modules in one lab and reveal them a class
+            // at a time. A student is never sent the patients of a hidden module; the
+            // filter is applied in the procedure, not in the view, so the rows do not
+            // reach the browser at all. Supervisors always see everything - they have
+            // to be able to prepare a scenario they have just hidden.
+            lstPatients = await _patientService.GetAllPatientsAsync(labId, IncludeHiddenModules);
             return PartialView("~/views/patient/_patientList.cshtml", lstPatients);
         }
 
@@ -31,7 +43,7 @@ namespace EMRSimulation.WebApp.Controllers
         {
             PatientDto patient;
 
-            patient = await _patientService.GetPatientById(patientId, labId);
+            patient = await _patientService.GetPatientById(patientId, labId, IncludeHiddenModules);
             return PartialView("~/views/patient/_patientRecord.cshtml", patient);
         }
 
@@ -39,7 +51,7 @@ namespace EMRSimulation.WebApp.Controllers
         {
             PatientDto patient;
 
-            patient = await _patientService.GetPatientById(patientId, labId);
+            patient = await _patientService.GetPatientById(patientId, labId, IncludeHiddenModules);
             return PartialView("~/views/patient/_patientAddsChart.cshtml", patient);
         }
 
@@ -59,7 +71,7 @@ namespace EMRSimulation.WebApp.Controllers
         public async Task<IActionResult> GetPatientIvFluidChart(int Id, int labId, int patientId)
         {
             PatientDto patient;
-            patient = await _patientService.GetPatientById(patientId, labId);
+            patient = await _patientService.GetPatientById(patientId, labId, IncludeHiddenModules);
 
             PatientIvFluidChartViewModel patientIvFluidChartViewModel = new PatientIvFluidChartViewModel();
             patientIvFluidChartViewModel.patientDto = patient;
@@ -171,7 +183,7 @@ namespace EMRSimulation.WebApp.Controllers
         // GET  /patient/GetPatientFluidBalanceChartAdd?labId=1&patientId=2
         public async Task<IActionResult> GetPatientFluidBalanceChartAdd(int labId, int patientId)
         {
-            var patient  = await _patientService.GetPatientById(patientId, labId);
+            var patient  = await _patientService.GetPatientById(patientId, labId, IncludeHiddenModules);
             var prevBal  = await _patientService.GetLatestFluidBalanceTotalBalanceAsync(labId, patientId);
             var vm = new PatientFluidBalanceChartViewModel
             {
@@ -190,7 +202,7 @@ namespace EMRSimulation.WebApp.Controllers
         // GET  /patient/GetPatientFluidBalanceChart?Id=5&labId=1&patientId=2
         public async Task<IActionResult> GetPatientFluidBalanceChart(int Id, int labId, int patientId)
         {
-            var patient = await _patientService.GetPatientById(patientId, labId);
+            var patient = await _patientService.GetPatientById(patientId, labId, IncludeHiddenModules);
             var chart = await _patientService.GetFluidBalanceChartByIdAsync(Id, labId);
             var vm = new PatientFluidBalanceChartViewModel
             {
@@ -278,7 +290,7 @@ namespace EMRSimulation.WebApp.Controllers
         public async Task<IActionResult> GetPatientNeurologicalChartAdd(int labId, int patientId)
         {
             PatientDto patient;
-            patient = await _patientService.GetPatientById(patientId, labId);
+            patient = await _patientService.GetPatientById(patientId, labId, IncludeHiddenModules);
 
             PatientNeurologicalChartViewModel patientNeurologicalChartViewModel = new PatientNeurologicalChartViewModel();
             patientNeurologicalChartViewModel.patientDto = patient;
@@ -294,7 +306,7 @@ namespace EMRSimulation.WebApp.Controllers
         public async Task<IActionResult> GetPatientNeurologicalChart(int Id, int labId, int patientId)
         {
             PatientDto patient;
-            patient = await _patientService.GetPatientById(patientId, labId);
+            patient = await _patientService.GetPatientById(patientId, labId, IncludeHiddenModules);
 
             PatientNeurologicalChartViewModel patientNeurologicalChartViewModel = new PatientNeurologicalChartViewModel();
             patientNeurologicalChartViewModel.patientDto = patient;
@@ -362,7 +374,7 @@ namespace EMRSimulation.WebApp.Controllers
         public async Task<IActionResult> GetPatientMedicationPrn(int Id, int labId, int patientId)
         {
             PatientDto patient;
-            patient = await _patientService.GetPatientById(patientId, labId);
+            patient = await _patientService.GetPatientById(patientId, labId, IncludeHiddenModules);
 
             PatientMedicationPrnListViewModel patientMedicationPrnListViewModel = new PatientMedicationPrnListViewModel();
             patientMedicationPrnListViewModel.patientDto = patient;
@@ -411,7 +423,7 @@ namespace EMRSimulation.WebApp.Controllers
         public async Task<IActionResult> GetPatientMedicationRegular(int Id, int labId, int patientId)
         {
             PatientDto patient;
-            patient = await _patientService.GetPatientById(patientId, labId);
+            patient = await _patientService.GetPatientById(patientId, labId, IncludeHiddenModules);
 
             PatientMedicationRegularListViewModel patientMedicationRegularListViewModel = new PatientMedicationRegularListViewModel();
             patientMedicationRegularListViewModel.patientDto = patient;
@@ -484,13 +496,8 @@ namespace EMRSimulation.WebApp.Controllers
                 if (!CanModifyProgressNote(existing))
                     return StatusCode(403, "You can only edit notes written from your own login.");
 
-                // An edit may change the text, the signature and the date and time.
-                // It may not change who wrote the note, which patient it belongs to,
-                // or which lab it sits in. Those three come from the stored row, not
-                // from the request: UpdateProgressNote assigns all of them, so
-                // accepting them from the client would let a caller move a note to
-                // another patient or campus by editing their own note. This is the
-                // same failure mode as trusting txtLabId at write time.
+                // Author, patient and lab come from the stored row, never the request -
+                // otherwise an edit could move a note to another patient or campus.
                 addsDto.NotesFrom = existing.NotesFrom;
                 addsDto.LabId = existing.LabId;
                 addsDto.PatientId = existing.PatientId;
@@ -594,7 +601,7 @@ namespace EMRSimulation.WebApp.Controllers
 
         public async Task<IActionResult> GetBradenAdd(int labId, int patientId)
         {
-            var patient = await _patientService.GetPatientById(patientId, labId);
+            var patient = await _patientService.GetPatientById(patientId, labId, IncludeHiddenModules);
             if (patient == null)
             {
                 return Content("<div class='p-3 text-danger'>Patient not found.</div>", "text/html");
@@ -618,7 +625,7 @@ namespace EMRSimulation.WebApp.Controllers
         public async Task<IActionResult> GetBradenFollowUpAdd(int labId, int patientId)
         {
            
-            var patient = await _patientService.GetPatientById(patientId, labId);
+            var patient = await _patientService.GetPatientById(patientId, labId, IncludeHiddenModules);
             if (patient == null)
             {
                 return Content("<div class='p-3 text-danger'>Patient not found.</div>", "text/html");

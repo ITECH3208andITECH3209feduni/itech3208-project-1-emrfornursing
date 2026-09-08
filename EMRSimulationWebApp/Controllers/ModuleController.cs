@@ -6,14 +6,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace EMRSimulationWebApp.Controllers
 {
     /// <summary>
-    /// Sprint 3, Requirement 1 - global module repository.
-    ///
-    /// SUPERVISOR ONLY. Naomi's brief is explicit that students must not be able
-    /// to create, copy, rename, edit or delete modules, so every action that
-    /// changes the repository is gated on the "supervisor" role claim. The two
-    /// read actions are also gated, since the repository browser is a Supervisor
-    /// View feature; students reach module content through the normal patient
-    /// screens once a module has been selected for them.
+    /// Sprint 3 - global module repository. Every action that changes a module is
+    /// supervisor only; students reach module content through the patient screens.
     /// </summary>
     [Authorize]
     public class ModuleController : Controller
@@ -29,30 +23,18 @@ namespace EMRSimulationWebApp.Controllers
             _labService = labService;
         }
 
-        /// <summary>
-        /// Only supervisors may change the repository. Students may read it -
-        /// Naomi's student workflow is "select the required Year Level and Module,
-        /// open the patient's EMR, view all documentation".
-        /// </summary>
         private bool IsSupervisor()
             => string.Equals(User.FindFirst("Role")?.Value, "supervisor",
                              System.StringComparison.OrdinalIgnoreCase);
 
         /// <summary>
-        /// Explicit 403 rather than Forbid(). Under cookie authentication Forbid()
-        /// redirects to AccessDeniedPath, which does not exist here, so a blocked
-        /// student saw a 404 from an AJAX call - indistinguishable from a broken
-        /// URL. The action was correctly refused either way; only the response was
-        /// misleading.
+        /// Explicit 403 rather than Forbid(), which redirects to AccessDeniedPath
+        /// under cookie auth and reaches an AJAX caller as a 404.
         /// </summary>
         private IActionResult SupervisorOnly()
             => StatusCode(403, "This action is only available to a Supervisor login.");
 
-        /// <summary>
-        /// Supervisor accounts are per campus and the claim carries labId, not a
-        /// supervisor id, so ownership is recorded as the campus that created the
-        /// module. It is audit information only - GetModules never filters on it.
-        /// </summary>
+        /// <summary>Records the creating campus. Audit only - never filtered on.</summary>
         private int? CreatedBy()
             => int.TryParse(User.FindFirst("labId")?.Value, out var id) ? id : null;
 
@@ -62,9 +44,12 @@ namespace EMRSimulationWebApp.Controllers
 
         public async Task<IActionResult> GetModuleRepository(int yearLevelId = 0, int unitId = 0, string? searchTerm = null)
         {
-            // Readable by both roles. CanManage drives whether the view renders
-            // New / Copy / Rename / Delete at all.
-            ViewData["CanManage"] = IsSupervisor();
+            // The repository is a Supervisor View feature. Students reach module
+            // content through the ordinary patient screens once an academic has
+            // loaded a module into their lab.
+            if (!IsSupervisor()) return SupervisorOnly();
+
+            ViewData["CanManage"] = true;
 
             var vm = new ModuleRepositoryViewModel
             {
@@ -81,7 +66,9 @@ namespace EMRSimulationWebApp.Controllers
 
         public async Task<IActionResult> GetModuleList(int yearLevelId = 0, int unitId = 0, string? searchTerm = null)
         {
-            ViewData["CanManage"] = IsSupervisor();
+            if (!IsSupervisor()) return SupervisorOnly();
+
+            ViewData["CanManage"] = true;
 
             var modules = await _moduleService.GetModulesAsync(yearLevelId, unitId, searchTerm);
             return PartialView("~/Views/Patient/_moduleList.cshtml", modules);
@@ -99,13 +86,13 @@ namespace EMRSimulationWebApp.Controllers
         }
 
         /// <summary>
-        /// Opens a module: its patient, with Select to set the patient context so
-        /// the chart menus become usable. This is the step that makes a module
-        /// populatable at all - the shared supervisor patient list has no Select,
-        /// so reusing it left the chart screens unreachable.
+        /// Opens a module's patients with Select, which sets the patient context the
+        /// chart menus need. The shared supervisor list has no Select.
         /// </summary>
         public async Task<IActionResult> GetModulePatients(int moduleId)
         {
+            if (!IsSupervisor()) return SupervisorOnly();
+
             var module = await _moduleService.GetModuleByIdAsync(moduleId);
             if (module == null) return NotFound("Module not found.");
 
@@ -120,18 +107,14 @@ namespace EMRSimulationWebApp.Controllers
                 });
         }
 
-        /// <summary>
-        /// Saves the module patient's demographics. Supervisor only - students may
-        /// read a module but never change it.
-        /// </summary>
+        /// <summary>Saves the module patient's demographics. Supervisor only.</summary>
         [HttpPost]
         public async Task<IActionResult> UpdateModulePatient([FromBody] PatientDto dto)
         {
             if (!IsSupervisor()) return SupervisorOnly();
             if (dto == null || dto.Id <= 0) return BadRequest("An existing patient is required.");
 
-            // Confirm the patient really is module-owned before writing. Without this
-            // a crafted request could edit a campus patient through this endpoint.
+            // Must be module-owned, or a crafted request could edit a campus patient.
             if (dto.ModuleId is null or <= 0)
                 return BadRequest("This endpoint only edits module-owned patients.");
 
@@ -139,8 +122,7 @@ namespace EMRSimulationWebApp.Controllers
             if (!inModule.Any(p => p.Id == dto.Id))
                 return BadRequest("That patient does not belong to the given module.");
 
-            // LabId 0 keeps the patient in the global repository. UpdatePatient sets
-            // LabId but never touches ModuleId, so module ownership survives the edit.
+            // LabId 0 keeps the patient in the global repository.
             dto.LabId = 0;
 
             try
@@ -220,6 +202,67 @@ namespace EMRSimulationWebApp.Controllers
             }
         }
 
+        /// <summary>
+        /// The labs holding a copy of this module, and whether each lab's students
+        /// can see it. Drives the visibility panel.
+        /// </summary>
+        public async Task<IActionResult> GetModuleLabVisibility(int moduleId)
+        {
+            if (!IsSupervisor()) return SupervisorOnly();
+            if (moduleId <= 0) return BadRequest("A module must be selected.");
+
+            var rows = await _moduleService.GetModuleLabVisibilityAsync(moduleId);
+
+            return Ok(rows.Select(r => new
+            {
+                labId             = r.Id,
+                labName           = r.LabName,
+                patientCount      = r.PatientCount,
+                hiddenCount       = r.HiddenCount,
+                visibleToStudents = r.VisibleToStudents,
+                loadedAt          = r.LoadedIntoLabAt
+            }));
+        }
+
+        /// <summary>
+        /// Show or hide a module's loaded patients from students in one lab, so a
+        /// campus can stage several modules and reveal one class at a time.
+        ///
+        /// Per lab, not per module: campuses run their own timetables, and hiding a
+        /// scenario at Berwick must not hide it at Gippsland.
+        /// </summary>
+        [HttpPost]
+        public async Task<IActionResult> SetModuleLabVisibility([FromBody] SetModuleLabVisibilityRequest request)
+        {
+            if (!IsSupervisor()) return SupervisorOnly();
+            if (request == null || request.ModuleId <= 0) return BadRequest("A module must be selected.");
+            if (request.LabId <= 0) return BadRequest("A laboratory must be selected.");
+
+            try
+            {
+                var affected = await _moduleService.SetModuleLabVisibilityAsync(
+                    request.ModuleId, request.LabId, request.VisibleToStudents);
+
+                if (affected == 0)
+                    return NotFound("That module is not currently loaded into that laboratory.");
+
+                return Ok(new
+                {
+                    moduleId          = request.ModuleId,
+                    labId             = request.LabId,
+                    visibleToStudents = request.VisibleToStudents,
+                    patientsAffected  = affected,
+                    resultMessage     = request.VisibleToStudents
+                        ? $"Now visible to students ({affected} patient(s))."
+                        : $"Now hidden from students ({affected} patient(s))."
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, "An error occurred while changing module visibility. " + ex.Message);
+            }
+        }
+
         public async Task<IActionResult> DeleteModule(int moduleId)
         {
             if (!IsSupervisor()) return SupervisorOnly();
@@ -240,17 +283,8 @@ namespace EMRSimulationWebApp.Controllers
            ------------------------------------------------------------------ */
 
         /// <summary>
-        /// Copies the module into the caller's own campus lab, ready for class.
-        ///
-        /// The target lab comes from the signed-in supervisor's claim and is
-        /// never accepted from the request. Taking it from the client would let
-        /// one campus load a scenario over another campus's lab and delete their
-        /// students' work - the same class of mistake as trusting txtLabId at
-        /// write time, which caused the cross-campus leak earlier this sprint.
-        /// </summary>
-        /// <summary>
-        /// The labs a module can be loaded into, with a flag for the caller's own.
-        /// Supervisor only - this drives the load picker.
+        /// The labs a module can be loaded into, flagging the caller's own.
+        /// Drives the load picker. Supervisor only.
         /// </summary>
         public async Task<IActionResult> GetLoadTargets(int moduleId)
         {
@@ -259,8 +293,7 @@ namespace EMRSimulationWebApp.Controllers
             var ownLabId = CreatedBy() ?? 0;
             var labs = await _labService.GetLabsAsync();
 
-            // Which of them already hold a copy of THIS module. Those will have their
-            // existing copy replaced, so the picker marks them as destructive.
+            // Labs already holding this module get their copy replaced - flagged as destructive.
             var alreadyLoaded = new Dictionary<int, DateTime?>();
             foreach (var lab in labs)
             {
@@ -280,15 +313,9 @@ namespace EMRSimulationWebApp.Controllers
         }
 
         /// <summary>
-        /// Copies the module into one or more campus labs, ready for class.
-        ///
-        /// Labs now come from the request, because academics asked to prepare a
-        /// scenario once and push it to every campus. That is a deliberate change:
-        /// previously the target was taken from the caller's own claim precisely so
-        /// one campus could not write into another's lab. The protection that remains
-        /// is that this is supervisor-only, and that the confirmation names every lab
-        /// whose existing copy - and whose students' work - will be replaced.
-        ///
+        /// Copies the module into one or more campus labs. Labs come from the request
+        /// so a scenario can be pushed to every campus; the safeguards are that this is
+        /// supervisor only and the confirmation names every lab whose work is replaced.
         /// An empty list falls back to the caller's own lab.
         /// </summary>
         [HttpPost]
@@ -429,6 +456,13 @@ namespace EMRSimulationWebApp.Controllers
 
         /// <summary>Null leaves the existing description untouched.</summary>
         public string? Description { get; set; }
+    }
+
+    public class SetModuleLabVisibilityRequest
+    {
+        public int ModuleId { get; set; }
+        public int LabId { get; set; }
+        public bool VisibleToStudents { get; set; }
     }
 
     public class ModulePatientViewModel

@@ -1,12 +1,12 @@
-using EMRSimulation.Application.Services;
+﻿using EMRSimulation.Application.Services;
 using EMRSimulation.Domain.Dtos;
 
 namespace EMRSimulation.Application.Services
 {
     public interface IPatientService
     {
-        Task<PatientDto> GetPatientById(int Id, int labId);
-        Task<IEnumerable<PatientDto>> GetAllPatientsAsync(int labId);
+        Task<PatientDto> GetPatientById(int Id, int labId, bool includeHiddenModules = true);
+        Task<IEnumerable<PatientDto>> GetAllPatientsAsync(int labId, bool includeHiddenModules = true);
         Task<int> AddPatientAsync(PatientDto addsDto);
         Task<IEnumerable<AddsDto>> GetPatientAdds(int labId, int patientId);
         Task<int> AddPatientAddsAsync(AddsDto addsDto);
