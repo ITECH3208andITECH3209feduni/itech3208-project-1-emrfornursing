@@ -517,8 +517,22 @@ namespace EMRSimulation.Infrastructure.Repositories
             {
                 command.CommandType = CommandType.StoredProcedure;
                 command.CommandText = "InsertIvFluidChart";
-                command.Parameters.Add(new SqlParameter("@LabId",      addsDto.LabId));
-                command.Parameters.Add(new SqlParameter("@PatientId",  addsDto.PatientId));
+                // InsertIvFluidChart declares eight parameters and only two were being
+                // supplied, so every IV fluid chart insert failed: @Date has no default
+                // in the procedure, so SQL Server rejected the call outright.
+                // Reported and patched by Evan Dekker, Fed Uni Technical Services.
+                //
+                // Every value is nullable on the DTO, so each is coalesced to DBNull.
+                // A SqlParameter left as null sends nothing at all rather than NULL,
+                // which is the same failure again for the parameters with no default.
+                command.Parameters.Add(new SqlParameter("@LabId",       addsDto.LabId       ?? (object)DBNull.Value));
+                command.Parameters.Add(new SqlParameter("@PatientId",   addsDto.PatientId   ?? (object)DBNull.Value));
+                command.Parameters.Add(new SqlParameter("@Date",        addsDto.Date        ?? (object)DBNull.Value));
+                command.Parameters.Add(new SqlParameter("@FlaskVol",    addsDto.FlaskVol    ?? (object)DBNull.Value));
+                command.Parameters.Add(new SqlParameter("@Strength",    addsDto.Strength    ?? (object)DBNull.Value));
+                command.Parameters.Add(new SqlParameter("@Rate",        addsDto.Rate        ?? (object)DBNull.Value));
+                command.Parameters.Add(new SqlParameter("@Dose",        addsDto.Dose        ?? (object)DBNull.Value));
+                command.Parameters.Add(new SqlParameter("@OfficerSign", addsDto.OfficerSign ?? (object)DBNull.Value));
 
                 var scalar = await command.ExecuteScalarAsync();
 #pragma warning disable CS8605
