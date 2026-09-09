@@ -520,14 +520,11 @@ namespace EMRSimulation.Infrastructure.Repositories
                 // InsertIvFluidChart declares eight parameters and only two were being
                 // supplied, so every IV fluid chart insert failed: @Date has no default
                 // in the procedure, so SQL Server rejected the call outright.
-                // Reported and patched by Evan Dekker, Fed Uni Technical Services.
-                //
-                // Every value is nullable on the DTO, so each is coalesced to DBNull.
-                // A SqlParameter left as null sends nothing at all rather than NULL,
-                // which is the same failure again for the parameters with no default.
-                command.Parameters.Add(new SqlParameter("@LabId",       addsDto.LabId       ?? (object)DBNull.Value));
-                command.Parameters.Add(new SqlParameter("@PatientId",   addsDto.PatientId   ?? (object)DBNull.Value));
-                command.Parameters.Add(new SqlParameter("@Date",        addsDto.Date        ?? (object)DBNull.Value));
+                // Reported and patched by Evan Dekker, Fed Uni Technical Services,
+                // and applied as supplied.
+                command.Parameters.Add(new SqlParameter("@LabId",      addsDto.LabId));
+                command.Parameters.Add(new SqlParameter("@PatientId",  addsDto.PatientId));
+                command.Parameters.Add(new SqlParameter("@Date", addsDto.Date));
                 command.Parameters.Add(new SqlParameter("@FlaskVol",    addsDto.FlaskVol    ?? (object)DBNull.Value));
                 command.Parameters.Add(new SqlParameter("@Strength",    addsDto.Strength    ?? (object)DBNull.Value));
                 command.Parameters.Add(new SqlParameter("@Rate",        addsDto.Rate        ?? (object)DBNull.Value));
