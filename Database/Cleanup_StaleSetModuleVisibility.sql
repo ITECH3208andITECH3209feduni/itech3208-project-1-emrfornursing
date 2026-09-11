@@ -1,4 +1,4 @@
-/* ============================================================================
+﻿/* ============================================================================
    Drop the superseded SetModuleVisibility procedure
 
    RUN AGAINST YOUR OWN DEVELOPMENT DATABASE. SAFE TO RE-RUN.
@@ -63,20 +63,54 @@ SELECT 'Patient.HiddenFromStudents',
 GO
 
 /* ===========================================================================
-   Any other procedure referencing a column that no longer exists?
+   Any other module referencing something that no longer exists?
    ---------------------------------------------------------------------------
    This is the check that would have caught the problem before the export left
-   the building. A procedure can compile and sit in the database indefinitely
-   before anyone notices.
+   the building. SQL Server uses deferred name resolution, so a procedure that
+   references a dropped column compiles, sits in the database indefinitely, and
+   only fails when it is executed or scripted into a fresh database.
+
+   sys.dm_sql_referenced_entities resolves each module's references and throws
+   when one cannot be resolved, so the failures are collected per object.
+   Read-only: nothing is altered.
    =========================================================================== */
-SELECT  OBJECT_NAME(referencing_id) AS Procedure_,
-        referenced_entity_name      AS Table_,
-        referenced_minor_name       AS MissingColumn_
-FROM    sys.sql_expression_dependencies
-WHERE   referenced_minor_id > 0
-  AND   referenced_id IS NOT NULL
-  AND   NOT EXISTS (SELECT 1 FROM sys.columns c
-                    WHERE c.[object_id] = referenced_id
-                      AND c.[name]      = referenced_minor_name)
-ORDER BY 1, 2;
+SET NOCOUNT ON;
+
+DECLARE @Broken TABLE (ObjectName SYSNAME, Problem NVARCHAR(1000));
+DECLARE @name SYSNAME;
+
+DECLARE modules CURSOR LOCAL FAST_FORWARD FOR
+    SELECT QUOTENAME(SCHEMA_NAME(schema_id)) + '.' + QUOTENAME(name)
+    FROM   sys.objects
+    WHERE  type IN ('P', 'V', 'FN', 'IF', 'TF', 'TR')
+      AND  is_ms_shipped = 0;
+
+OPEN modules;
+FETCH NEXT FROM modules INTO @name;
+
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    BEGIN TRY
+        /* Referencing a missing column or object makes this throw. */
+        DECLARE @ignore INT;
+        SELECT @ignore = COUNT(*)
+        FROM   sys.dm_sql_referenced_entities(@name, 'OBJECT');
+    END TRY
+    BEGIN CATCH
+        INSERT INTO @Broken (ObjectName, Problem) VALUES (@name, ERROR_MESSAGE());
+    END CATCH
+
+    FETCH NEXT FROM modules INTO @name;
+END
+
+CLOSE modules;
+DEALLOCATE modules;
+
+IF EXISTS (SELECT 1 FROM @Broken)
+    SELECT 'Modules with unresolved references - fix before exporting' AS Result_,
+           ObjectName, Problem
+    FROM   @Broken
+    ORDER  BY ObjectName;
+ELSE
+    SELECT 'No module references a missing object or column.' AS Result_;
 GO
