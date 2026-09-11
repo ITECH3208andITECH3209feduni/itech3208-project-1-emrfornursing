@@ -4372,35 +4372,6 @@ BEGIN
     SELECT @@ROWCOUNT AS PatientsAffected;
 END
 GO
-/****** Object:  StoredProcedure [dbo].[SetModuleVisibility]    Script Date: 08-Sep-26 9:04:35 PM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE PROCEDURE [dbo].[SetModuleVisibility]
-    @ModuleId          INT,
-    @VisibleToStudents BIT
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    IF NOT EXISTS (SELECT 1 FROM [dbo].[Module] WHERE [Id] = @ModuleId)
-    BEGIN
-        RAISERROR('Module %d does not exist.', 16, 1, @ModuleId);
-        RETURN;
-    END
-
-    UPDATE [dbo].[Module]
-    SET    [VisibleToStudents] = @VisibleToStudents,
-           [UpdatedDate]       = GETDATE()
-    WHERE  [Id] = @ModuleId;
-
-    /* How many loaded copies this reaches, across all labs. Returned as the
-       first column because the caller reads it with ExecuteScalar. */
-    SELECT  (SELECT COUNT(*) FROM [dbo].[Patient]
-             WHERE [SourceModuleId] = @ModuleId) AS AffectedLoadedPatients;
-END
-GO
 /****** Object:  StoredProcedure [dbo].[UpdateFoodIntake]    Script Date: 08-Sep-26 9:04:35 PM ******/
 SET ANSI_NULLS ON
 GO
