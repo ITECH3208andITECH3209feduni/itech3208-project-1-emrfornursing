@@ -50,9 +50,9 @@ git clone the repository to desired directory
 
 Create the database - in SSMS right-click Databases > New Database, name it EmrSimulator, OK. The scripts below do not create it for you.
 
-Run Database\EMRSimulatorFULL-spr4.sql - open it in SSMS, select EmrSimulator in the database dropdown, Execute. This builds the schema: 27 tables and 93 stored procedures, no data.
+Run Database\EMRSimulatorFULL-spr4.sql - open it in SSMS, select EmrSimulator in the database dropdown, Execute. This builds the schema.
 
-Run Database\sqlusers_and_yearLevels.sql against the same database. This adds the lab and supervisor logins and the year levels and unit codes the Global Module Repository needs. Without it the Unit dropdown is empty and no module can be created. Safe to re-run.
+Run Database\sqlusers_and_yearLevels.sql against the same database. 
 
 Logins - student lab123 / lab123, supervisor super / super
 
