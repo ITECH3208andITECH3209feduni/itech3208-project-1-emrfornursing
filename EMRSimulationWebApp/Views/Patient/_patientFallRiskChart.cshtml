@@ -267,7 +267,8 @@
                 const labId = @labId;
                 const patientId = @patientId;
 
-                if (!labId || !patientId) {
+                // labId 0 is the module scope and is valid; test for NaN, not falsiness.
+                if (Number.isNaN(labId) || !patientId) {
                     window.jQuery && $('#fratSaveMsg').html('<div class="alert alert-warning">⚠ Please select a patient first.</div>');
                     return;
                 }

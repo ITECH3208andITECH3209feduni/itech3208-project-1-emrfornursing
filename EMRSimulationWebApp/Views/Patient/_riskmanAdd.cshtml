@@ -640,7 +640,8 @@
 
         // Required fields check
         const labId = parseInt($("#txtLabId").val(), 10);   // from layout
-        if (!labId) { $("#lblRiskmanMessage").text("Lab ID missing.").css("color","red").show(); return; }
+        // labId 0 is the module scope and is valid; test for NaN, not falsiness.
+        if (Number.isNaN(labId)) { $("#lblRiskmanMessage").text("Lab ID missing.").css("color","red").show(); return; }
 
         const incidentDateRaw = requireField("#incidentDate", "Incident Date is required");
         const incidentTime    = requireField("#incidentTime", "Incident Time is required");
