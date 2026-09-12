@@ -96,14 +96,25 @@ else {
 # ---------------------------------------------------------------------------
 if ($AppSettings) {
     if (-not (Test-Path -LiteralPath $AppSettings)) { throw "Not found: $AppSettings" }
-    $json = Get-Content -LiteralPath $AppSettings -Raw
-    $new  = [regex]::Replace($json, 'Database=[^;"]*', "Database=$Database")
-    if ($new -ne $json) {
-        Copy-Item -LiteralPath $AppSettings -Destination "$AppSettings.bak" -Force
-        Set-Content -LiteralPath $AppSettings -Value $new -NoNewline
-        Write-Host "Repointed $(Split-Path $AppSettings -Leaf) at [$Database] (original saved as .bak)."
-    }
-    else {
-        Write-Host "$(Split-Path $AppSettings -Leaf) already points at [$Database]."
+
+    # Every appsettings*.json in the folder, not just the one named. In
+    # Development, appsettings.Development.json overrides the base file, so
+    # patching only the base leaves the app on the old database.
+    $dir   = if (Test-Path -LiteralPath $AppSettings -PathType Container) { $AppSettings } else { Split-Path -Parent $AppSettings }
+    $files = @(Get-ChildItem -LiteralPath $dir -Filter 'appsettings*.json' -File)
+    if (-not $files) { throw "No appsettings*.json found in $dir" }
+
+    foreach ($f in $files) {
+        $json = Get-Content -LiteralPath $f.FullName -Raw
+        if ($json -notmatch 'Database=') { continue }
+        $new = [regex]::Replace($json, 'Database=[^;"]*', "Database=$Database")
+        if ($new -ne $json) {
+            Copy-Item -LiteralPath $f.FullName -Destination "$($f.FullName).bak" -Force
+            Set-Content -LiteralPath $f.FullName -Value $new -NoNewline
+            Write-Host "  Repointed $($f.Name) at [$Database] (original saved as .bak)."
+        }
+        else {
+            Write-Host "  $($f.Name) already points at [$Database]."
+        }
     }
 }
