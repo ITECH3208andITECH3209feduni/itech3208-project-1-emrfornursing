@@ -1,4 +1,4 @@
-/****** Object:  Table [dbo].[BradenAssessment]    Script Date: 12-Sep-26 12:40:56 PM ******/
+ï»¿/****** Object:  Table [dbo].[BradenAssessment]    Script Date: 12-Sep-26 12:40:56 PM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2793,7 +2793,7 @@ AS
 BEGIN
   SET NOCOUNT ON;
 
-  -- ? Guard: block any second “initial” row for this LabId+PatientId
+  -- ? Guard: block any second "initial" row for this LabId+PatientId
   -- UPDLOCK+HOLDLOCK prevents race conditions under concurrency
   IF EXISTS (
       SELECT 1
