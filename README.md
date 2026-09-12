@@ -37,11 +37,26 @@ Git
 Setup
 
 Install ASP.NET Core Runtime 8 (Hosting Bundle)
+
 Install IIS
+
 Install Visual Studio Community 2022 (64-bit) - during install - select ASP.NET and web development
+
 Install SQL Server Express - - during install -select->Custom>Enable Mixed Mode Authentication> set "sa" account password to "EmrP@ssword123!"
+
 Install SSMS
+
 git clone the repository to desired directory
-Run new query in ssms and use provided SQL scripts in Database folder to which will create database and sql users
+
+Create the database - in SSMS right-click Databases > New Database, name it EmrSimulator, OK. The scripts below do not create it for you.
+
+Run Database\EMRSimulatorFULL-spr4.sql - open it in SSMS, select EmrSimulator in the database dropdown, Execute. This builds the schema: 27 tables and 93 stored procedures, no data.
+
+Run Database\sqlusers_and_yearLevels.sql against the same database. This adds the lab and supervisor logins and the year levels and unit codes the Global Module Repository needs. Without it the Unit dropdown is empty and no module can be created. Safe to re-run.
+
+Logins - student lab123 / lab123, supervisor super / super
+
+If you named the database something other than EmrSimulator, update the connection string in EMRSimulationWebApp\appsettings.json to match.
+
 Configure and run in Visual studio via opening EMRSimulationWebApp.sln file Or run publish via visual studio to IIS
 
