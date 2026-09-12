@@ -61,3 +61,9 @@
 #*.PDF   diff=astextplain
 #*.rtf   diff=astextplain
 #*.RTF   diff=astextplain
+
+###############################################################################
+# Generated SQL exports - written CRLF by SSMS/SMO and run on Windows.
+# Left byte-for-byte as produced so re-exports diff cleanly.
+###############################################################################
+*.sql -text
