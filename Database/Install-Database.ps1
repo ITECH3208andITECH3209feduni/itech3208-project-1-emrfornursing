@@ -20,7 +20,8 @@ param(
     [string]$Database       = 'EmrSimulator_Test',
     [string]$ScriptRoot,
     [string]$AppSettings,                                  # optional: repoint the app at this database
-    [switch]$Force,                                        # allow a database that already has tables
+    [switch]$Recreate,                                     # drop and rebuild if it already exists
+    [switch]$Force,                                        # run into an existing database as-is
     [System.Management.Automation.PSCredential]$Credential
 )
 
@@ -42,14 +43,26 @@ if ($Credential) { $common.Credential = $Credential }
 # ---------------------------------------------------------------------------
 $exists = Invoke-Sqlcmd @common -Database master -Query "SELECT 1 AS x FROM sys.databases WHERE name = '$Database'"
 
+if ($exists -and $Recreate) {
+    # Kick any open connections first - SSMS holding the database is the usual
+    # reason a drop hangs.
+    Invoke-Sqlcmd @common -Database master -Query @"
+ALTER DATABASE [$Database] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+DROP DATABASE [$Database];
+"@
+    Write-Host "Dropped existing database [$Database]."
+    $exists = $null
+}
+
 if ($exists) {
     $tables = (Invoke-Sqlcmd @common -Database $Database -Query "SELECT COUNT(*) AS n FROM sys.tables WHERE is_ms_shipped = 0").n
     if ($tables -gt 0 -and -not $Force) {
-        throw "[$Database] already has $tables tables. Use a new name, or -Force to run into it anyway."
+        throw "[$Database] already has $tables tables. Re-run with -Recreate to drop and rebuild it, or use a new -Database name. (-Force runs the scripts into it as-is, which fails on CREATE TABLE.)"
     }
     Write-Host "Using existing database [$Database]."
 }
-else {
+
+if (-not $exists) {
     # No file paths specified, so SQL Server uses the instance's own defaults.
     Invoke-Sqlcmd @common -Database master -Query "CREATE DATABASE [$Database]"
     Write-Host "Created database [$Database]."
