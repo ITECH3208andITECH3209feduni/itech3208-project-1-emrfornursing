@@ -373,3 +373,6 @@ emr_fix_*.py
 # Data protection keys, written at runtime. Machine-specific, never shared.
 EMRSimulationWebApp/keys/
 
+
+# Local database tooling, not part of the project source
+Database/*.ps1
