@@ -1,4 +1,4 @@
-﻿/****** Object:  Table [dbo].[BradenAssessment]    Script Date: 12-Sep-26 3:37:27 PM ******/
+/****** Object:  Table [dbo].[BradenAssessment]    Script Date: 12-Sep-26 3:37:27 PM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON

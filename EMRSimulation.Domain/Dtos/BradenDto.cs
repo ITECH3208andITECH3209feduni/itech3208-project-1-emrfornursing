@@ -1,4 +1,4 @@
-﻿namespace EMRSimulation.Domain.Dtos
+namespace EMRSimulation.Domain.Dtos
 {
     public class BradenDto
     {

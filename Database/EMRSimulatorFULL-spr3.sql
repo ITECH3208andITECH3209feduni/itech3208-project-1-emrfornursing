@@ -1,4 +1,4 @@
-﻿USE [master]
+USE [master]
 GO
 /****** Object:  Database [EmrSimulator]    Script Date: 14-Aug-26 6:02:49 PM ******/
 CREATE DATABASE [EmrSimulator]

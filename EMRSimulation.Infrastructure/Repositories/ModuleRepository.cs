@@ -1,4 +1,4 @@
-﻿using EMRSimulation.Application.Interfaces;
+using EMRSimulation.Application.Interfaces;
 using EMRSimulation.Domain.Dtos;
 using EMRSimulation.Infrastructure.Connection;
 using System;

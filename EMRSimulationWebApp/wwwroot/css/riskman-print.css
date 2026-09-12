@@ -1,4 +1,4 @@
-﻿/* Print-only rules for Riskman Incident View */
+/* Print-only rules for Riskman Incident View */
 @media print {
     /* Hide everything by default */
     body * {

@@ -1,4 +1,4 @@
-﻿namespace EMRSimulationWebApp.Models
+namespace EMRSimulationWebApp.Models
 {
     public class BradenAddViewModel
     {

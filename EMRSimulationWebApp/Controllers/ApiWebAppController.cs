@@ -1,4 +1,4 @@
-﻿using EMRSimulation.Application.Services;
+using EMRSimulation.Application.Services;
 using EMRSimulation.Domain.Models;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication;

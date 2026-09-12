@@ -1,4 +1,4 @@
-﻿// EMRSimulation.Domain.Dtos/FoodIntakeDto.cs
+// EMRSimulation.Domain.Dtos/FoodIntakeDto.cs
 using System.ComponentModel.DataAnnotations;
 
 namespace EMRSimulation.Domain.Dtos

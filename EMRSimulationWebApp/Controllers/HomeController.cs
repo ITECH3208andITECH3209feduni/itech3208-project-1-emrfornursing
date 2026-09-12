@@ -1,4 +1,4 @@
-﻿using EMRSimulationWebApp.Models;
+using EMRSimulationWebApp.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;

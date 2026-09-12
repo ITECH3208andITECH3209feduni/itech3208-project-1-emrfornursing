@@ -1,4 +1,4 @@
-﻿using EMRSimulation.Application.Interfaces;
+using EMRSimulation.Application.Interfaces;
 using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;

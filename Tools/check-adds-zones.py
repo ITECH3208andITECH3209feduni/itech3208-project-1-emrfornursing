@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """
-Guard against the ADDS chart and the ADDS list disagreeing about zone colours.
+Catch the ADDS chart and the ADDS list drifting apart on zone colours.
 
-The entry form (_patientAddsChart.cshtml) shades each observation from the
-data-color attribute on the option the user picked. The observation list has no
-such attribute to read, only the stored text, so it looks the colour up in
-AddsZones.cs. AddsZones.cs was generated from those same options - this script
-re-compares them and exits non-zero if they have drifted apart.
+The entry form (_patientAddsChart.cshtml) colours each observation using the
+data-color attribute on whichever option the user selected. The observation
+list has no such attribute available - it only has the stored text - so it
+looks the colour up in AddsZones.cs instead. AddsZones.cs was generated from
+those same options originally; this script cross-checks them and exits
+non-zero the moment they no longer match.
 
     python Tools/check-adds-zones.py
 
-Run it after editing either file. There is no build step that would catch this:
-both sides compile perfectly well while showing a nurse two different zones for
-the same reading.
+Run this after editing either file. Nothing in the build catches this on its
+own - both sides compile just fine while showing a nurse two different zones
+for the same reading.
 """
 import re
 import sys
@@ -41,62 +42,62 @@ NAMES = {
 TAG = r'(?:[^>"]|"[^"]*")*'
 
 
-def from_view():
-    src = VIEW.read_text(encoding="utf-8")
-    sel = re.compile(r'<select' + TAG + r'id="(?P<id>[A-Za-z0-9_]+)"' + TAG + r'>(?P<body>.*?)</select>', re.S)
-    opt = re.compile(r'<option(?P<attrs>' + TAG + r')>', re.S)
-    found = {}
-    for m in sel.finditer(src):
-        field = FIELDS.get(m.group("id"))
+def read_view():
+    text = VIEW.read_text(encoding="utf-8")
+    select_re = re.compile(r'<select' + TAG + r'id="(?P<id>[A-Za-z0-9_]+)"' + TAG + r'>(?P<body>.*?)</select>', re.S)
+    option_re = re.compile(r'<option(?P<attrs>' + TAG + r')>', re.S)
+    by_field = {}
+    for select_match in select_re.finditer(text):
+        field = FIELDS.get(select_match.group("id"))
         if not field:
             continue                      # mode of delivery and diastolic are not scored
-        pairs = {}
-        for o in opt.finditer(m.group("body")):
-            a = o.group("attrs")
-            v = re.search(r'value="([^"]*)"', a)
-            c = re.search(r'data-color="([^"]*)"', a)
-            if v and c and v.group(1):
-                pairs[v.group(1)] = c.group(1).upper()
-        found[field] = pairs
-    return found
+        colours = {}
+        for option_match in option_re.finditer(select_match.group("body")):
+            attrs = option_match.group("attrs")
+            value_match = re.search(r'value="([^"]*)"', attrs)
+            colour_match = re.search(r'data-color="([^"]*)"', attrs)
+            if value_match and colour_match and value_match.group(1):
+                colours[value_match.group(1)] = colour_match.group(1).upper()
+        by_field[field] = colours
+    return by_field
 
 
-def from_zones():
-    src = ZONES.read_text(encoding="utf-8")
-    found = {}
-    block = re.compile(r'\[(?P<field>\w+)\]\s*=\s*new Dictionary<string, string>\([^)]*\)\s*\{(?P<body>.*?)\n\s*\},', re.S)
-    row = re.compile(r'\["(?P<value>(?:[^"\\]|\\.)*)"\]\s*=\s*(?P<colour>\w+)')
-    for m in block.finditer(src):
-        pairs = {}
-        for r in row.finditer(m.group("body")):
-            pairs[r.group("value").replace('\\"', '"')] = NAMES[r.group("colour")]
-        found[m.group("field")] = pairs
-    return found
+def read_zones():
+    text = ZONES.read_text(encoding="utf-8")
+    by_field = {}
+    block_re = re.compile(r'\[(?P<field>\w+)\]\s*=\s*new Dictionary<string, string>\([^)]*\)\s*\{(?P<body>.*?)\n\s*\},', re.S)
+    row_re = re.compile(r'\["(?P<value>(?:[^"\\]|\\.)*)"\]\s*=\s*(?P<colour>\w+)')
+    for block_match in block_re.finditer(text):
+        colours = {}
+        for row_match in row_re.finditer(block_match.group("body")):
+            colours[row_match.group("value").replace('\\"', '"')] = NAMES[row_match.group("colour")]
+        by_field[block_match.group("field")] = colours
+    return by_field
 
 
 def main():
-    view, zones = from_view(), from_zones()
-    problems = []
+    view_fields, zone_fields = read_view(), read_zones()
+    mismatches = []
 
-    for field in sorted(set(view) | set(zones)):
-        v, z = view.get(field, {}), zones.get(field, {})
-        for value in sorted(set(v) | set(z)):
-            if value not in v:
-                problems.append(f"{field}: '{value}' is in AddsZones.cs but no longer an option in the chart")
-            elif value not in z:
-                problems.append(f"{field}: '{value}' is an option in the chart but missing from AddsZones.cs")
-            elif v[value] != z[value]:
-                problems.append(f"{field}: '{value}' is {v[value]} in the chart but {z[value]} in AddsZones.cs")
+    for field in sorted(set(view_fields) | set(zone_fields)):
+        view_colours, zone_colours = view_fields.get(field, {}), zone_fields.get(field, {})
+        for value in sorted(set(view_colours) | set(zone_colours)):
+            if value not in view_colours:
+                mismatches.append(f"{field}: '{value}' is in AddsZones.cs but no longer an option in the chart")
+            elif value not in zone_colours:
+                mismatches.append(f"{field}: '{value}' is an option in the chart but missing from AddsZones.cs")
+            elif view_colours[value] != zone_colours[value]:
+                mismatches.append(f"{field}: '{value}' is {view_colours[value]} in the chart but {zone_colours[value]} in AddsZones.cs")
 
-    if problems:
+    if mismatches:
         print("ADDS zone mismatch - the chart and the list would disagree:\n")
-        for p in problems:
-            print("  " + p)
-        print(f"\n{len(problems)} problem(s).")
+        for mismatch in mismatches:
+            print("  " + mismatch)
+        print(f"\n{len(mismatches)} problem(s).")
         return 1
 
-    total = sum(len(p) for p in view.values())
-    print(f"ADDS zones agree: {total} scored options across {len(view)} fields.")
+    total_options = sum(len(colours) for colours in view_fields.values())
+    print(f"ADDS zones agree: {total_options} scored options across {len(view_fields)} fields.")
     return 0
 
 

@@ -1,4 +1,4 @@
-﻿using EMRSimulation.Domain.Dtos;
+using EMRSimulation.Domain.Dtos;
 
 namespace EMRSimulationWebApp.Models
 {

@@ -1,4 +1,4 @@
-﻿using EMRSimulation.Domain.Dtos;
+using EMRSimulation.Domain.Dtos;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
