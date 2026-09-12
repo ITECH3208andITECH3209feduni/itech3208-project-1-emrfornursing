@@ -42,7 +42,7 @@ Install IIS
 
 Install Visual Studio Community 2022 (64-bit) - during install - select ASP.NET and web development
 
-Install SQL Server Express - - during install -select->Custom>Enable Mixed Mode Authentication> set "sa" account password to "EmrP@ssword123!"
+Install SQL Server Express - - during install -select->Custom>Enable Mixed Mode Authentication> set "sa" account password to "Emrp@ssword123!"
 
 Install SSMS
 
