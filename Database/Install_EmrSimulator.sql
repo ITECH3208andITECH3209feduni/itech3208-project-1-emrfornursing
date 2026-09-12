@@ -15,7 +15,7 @@
    database yourself avoids that entirely.
 
    Contents, in order:
-       1. Tables, indexes, foreign keys and 80 stored procedures
+       1. Tables, indexes, foreign keys and stored procedures
        2. One laboratory and one supervisor login
        3. Three year levels and the six NURBN unit codes
 
@@ -24,22 +24,49 @@
    module repository opens but nothing can be created in it.
 
    Safe to run only on an empty database. It does not drop anything.
+
+   GENERATED FILE - do not edit by hand. Rebuild it with
+   Build-InstallScript.ps1 after taking a fresh export from the database.
    ============================================================================ */
 
 SET NOCOUNT ON;
 GO
 
-/* Refuse to run against a system database - the commonest way to ruin an
-   afternoon is executing this with master selected. */
-IF DB_NAME() IN ('master', 'model', 'msdb', 'tempdb')
+/* ----------------------------------------------------------------------------
+   Guards. Both abort the ENTIRE install, not just the batch they sit in.
+
+   SET NOEXEC ON is what does the aborting. RAISERROR and THROW end only their
+   own batch, so with GO-separated batches below them the script reports the
+   error and then installs anyway - which is exactly what the first version of
+   this file did. NOEXEC persists for the rest of the session, so every batch
+   after a tripped guard is compiled and discarded. It is switched back off in
+   the last batch of the file.
+
+   Compiled, not skipped - so an aborted run can print follow-on errors such
+   as Invalid object name. Those are compilation noise from batches that never
+   executed. The first message is the real one, and the confirmation report at
+   the end will be absent.
+
+   DB_NAME() is read into a variable first. RAISERROR substitution arguments
+   must be a variable or a literal - a function call there is a syntax error.
+
+   Severity 16, not 20. Severity 20 aborts the connection and requires
+   sysadmin, and WITH LOG requires it too, so on a student install the
+   permission check fires before the real message is ever shown.
+   ---------------------------------------------------------------------------- */
+DECLARE @TargetDatabase SYSNAME = DB_NAME();
+
+IF @TargetDatabase IN ('master', 'model', 'msdb', 'tempdb')
 BEGIN
-    RAISERROR('Select the target database first. This must not run against %s.', 20, 1, DB_NAME()) WITH LOG;
+    RAISERROR('INSTALL ABORTED - nothing was created. The selected database is %s. Create an empty database, select it in the SSMS database dropdown, then run this file again. Ignore any errors printed below this line; they are batches being compiled and discarded.', 16, 1, @TargetDatabase);
+    SET NOEXEC ON;
 END
 GO
 
 IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'Patient' AND schema_id = SCHEMA_ID('dbo'))
 BEGIN
-    RAISERROR('This database already contains the EMR schema. Use an empty database.', 20, 1) WITH LOG;
+    RAISERROR('INSTALL ABORTED - nothing was changed. This database already contains the EMR schema. Use an empty database. Ignore any errors printed below this line.', 16, 1);
+    SET NOEXEC ON;
 END
 GO
 
@@ -858,7 +885,6 @@ BEGIN
     -- Return the summary table
     SELECT * FROM @DeletedRowsSummary;
 END;
-
 GO
 /****** Object:  StoredProcedure [dbo].[ClearPatientData]    Script Date: 08-Sep-26 9:04:35 PM ******/
 SET ANSI_NULLS ON
@@ -1475,7 +1501,6 @@ BEGIN
     -- Optionally, return the number of rows affected
     SELECT @@ROWCOUNT AS RowsAffected;
 END
-
 GO
 /****** Object:  StoredProcedure [dbo].[DeleteIvFluidChart]    Script Date: 08-Sep-26 9:04:35 PM ******/
 SET ANSI_NULLS ON
@@ -1506,7 +1531,6 @@ BEGIN
         END
     END
 END
-
 GO
 /****** Object:  StoredProcedure [dbo].[DeleteMedication]    Script Date: 08-Sep-26 9:04:35 PM ******/
 SET ANSI_NULLS ON
@@ -1538,7 +1562,6 @@ BEGIN
         END
     END
 END
-
 GO
 /****** Object:  StoredProcedure [dbo].[DeleteMedicationPrnAdministration]    Script Date: 08-Sep-26 9:04:35 PM ******/
 SET ANSI_NULLS ON
@@ -1557,7 +1580,6 @@ BEGIN
     -- Optionally, return the number of rows affected
     SELECT @@ROWCOUNT AS RowsAffected;
 END
-
 GO
 /****** Object:  StoredProcedure [dbo].[DeleteMedicationPrnChart]    Script Date: 08-Sep-26 9:04:35 PM ******/
 SET ANSI_NULLS ON
@@ -1589,7 +1611,6 @@ BEGIN
     END
 
 END
-
 GO
 /****** Object:  StoredProcedure [dbo].[DeleteMedicationRegularAdministration]    Script Date: 08-Sep-26 9:04:35 PM ******/
 SET ANSI_NULLS ON
@@ -1608,7 +1629,6 @@ BEGIN
     -- Optionally, return the number of rows affected
     SELECT @@ROWCOUNT AS RowsAffected;
 END
-
 GO
 /****** Object:  StoredProcedure [dbo].[DeleteMedicationRegularChart]    Script Date: 08-Sep-26 9:04:35 PM ******/
 SET ANSI_NULLS ON
@@ -1640,7 +1660,6 @@ BEGIN
     END
 
 END
-
 GO
 /****** Object:  StoredProcedure [dbo].[DeleteModule]    Script Date: 08-Sep-26 9:04:35 PM ******/
 SET ANSI_NULLS ON
@@ -1870,7 +1889,6 @@ BEGIN
 
 	SELECT @RowsAffected AS RowsAffected
 END
-
 GO
 /****** Object:  StoredProcedure [dbo].[DeleteProgressNote]    Script Date: 08-Sep-26 9:04:35 PM ******/
 SET ANSI_NULLS ON
@@ -2178,7 +2196,6 @@ BEGIN
       AND (@PatientId = 0 OR PatientId = @PatientId)
       AND (@Id = 0 OR Id = @Id);
 END
-
 GO
 /****** Object:  StoredProcedure [dbo].[GetLab]    Script Date: 08-Sep-26 9:04:35 PM ******/
 SET ANSI_NULLS ON
@@ -3108,7 +3125,6 @@ BEGIN
     -- Optionally return the newly inserted Id
     SELECT CAST(SCOPE_IDENTITY() AS INT) AS Id;
 END
-
 GO
 /****** Object:  StoredProcedure [dbo].[InsertIvFluidChart]    Script Date: 08-Sep-26 9:04:35 PM ******/
 SET ANSI_NULLS ON
@@ -3154,7 +3170,6 @@ BEGIN
     -- Optionally return the newly inserted Id
      SELECT CAST(SCOPE_IDENTITY() AS INT) AS Id;
 END
-
 GO
 /****** Object:  StoredProcedure [dbo].[InsertMedication]    Script Date: 08-Sep-26 9:04:35 PM ******/
 SET ANSI_NULLS ON
@@ -3182,7 +3197,6 @@ BEGIN
     -- Optionally return the ID of the newly inserted record
    SELECT CAST(SCOPE_IDENTITY() AS INT) AS Id;
 END
-
 GO
 /****** Object:  StoredProcedure [dbo].[InsertMedicationPrnAdministration]    Script Date: 08-Sep-26 9:04:35 PM ******/
 SET ANSI_NULLS ON
@@ -3234,7 +3248,6 @@ BEGIN
     -- Optionally return the newly inserted Id
     SELECT CAST(SCOPE_IDENTITY() AS INT) AS Id;
 END
-
 GO
 /****** Object:  StoredProcedure [dbo].[InsertMedicationPrnChart]    Script Date: 08-Sep-26 9:04:35 PM ******/
 SET ANSI_NULLS ON
@@ -3292,7 +3305,6 @@ BEGIN
     -- Optionally return the ID of the newly inserted record
     SELECT CAST(SCOPE_IDENTITY() AS INT) AS Id;
 END
-
 GO
 /****** Object:  StoredProcedure [dbo].[InsertMedicationRegularAdministration]    Script Date: 08-Sep-26 9:04:35 PM ******/
 SET ANSI_NULLS ON
@@ -3345,7 +3357,6 @@ BEGIN
     -- Optionally return the newly inserted Id
     SELECT CAST(SCOPE_IDENTITY() AS INT) AS Id;
 END
-
 GO
 /****** Object:  StoredProcedure [dbo].[InsertMedicationRegularChart]    Script Date: 08-Sep-26 9:04:35 PM ******/
 SET ANSI_NULLS ON
@@ -3403,7 +3414,6 @@ BEGIN
     -- Optionally return the ID of the newly inserted record
     SELECT CAST(SCOPE_IDENTITY() AS INT) AS Id;
 END
-
 GO
 /****** Object:  StoredProcedure [dbo].[InsertModule]    Script Date: 08-Sep-26 9:04:35 PM ******/
 SET ANSI_NULLS ON
@@ -3645,7 +3655,6 @@ BEGIN
 	-- Optionally return the newly inserted Id
     SELECT CAST(SCOPE_IDENTITY() AS INT) AS Id;
 END
-
 GO
 /****** Object:  StoredProcedure [dbo].[InsertPatientAdds]    Script Date: 08-Sep-26 9:04:35 PM ******/
 SET ANSI_NULLS ON
@@ -4481,7 +4490,6 @@ BEGIN
         RAISERROR('No record found with the given Id.', 16, 1);
     END
 END
-
 GO
 /****** Object:  StoredProcedure [dbo].[UpdatePatientAdds]    Script Date: 08-Sep-26 9:04:35 PM ******/
 SET ANSI_NULLS ON
@@ -4785,7 +4793,6 @@ BEGIN
     
 END
 GO
-GO
 
 /* ============================================================================
    2. LABORATORY AND SUPERVISOR LOGINS
@@ -4813,6 +4820,9 @@ GO
 /* ============================================================================
    3. YEAR LEVELS AND UNITS
    ============================================================================ */
+SET NOCOUNT ON;
+GO
+
 /* ===========================================================================
    1. Year levels
    =========================================================================== */
@@ -4883,5 +4893,14 @@ UNION ALL SELECT 'Year levels', CAST(COUNT(*) AS VARCHAR(10)) FROM [dbo].[YearLe
 UNION ALL SELECT 'Units',       CAST(COUNT(*) AS VARCHAR(10)) FROM [dbo].[Unit];
 GO
 
-PRINT 'Install complete. Expect 27 tables, 80 procedures, 1 lab, 1 supervisor, 3 year levels, 6 units.';
+PRINT 'Install complete.';
+GO
+
+/* ----------------------------------------------------------------------------
+   Last batch. If a guard tripped, execution has been off since then and
+   nothing above this line ran - including the confirmation report, whose
+   absence is the signal that the install did not happen. Switch execution back
+   on regardless so the connection is left usable.
+   ---------------------------------------------------------------------------- */
+SET NOEXEC OFF;
 GO
