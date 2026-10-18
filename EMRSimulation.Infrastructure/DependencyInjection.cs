@@ -38,6 +38,10 @@ namespace EMRSimulation.Infrastructure
             services.AddScoped<IModuleRepository, ModuleRepository>();
             services.AddScoped<IModuleService, ModuleService>();
 
+            // Sprint 5 - unified Medication Administration Record
+            services.AddScoped<IMedicationChartRepository, MedicationChartRepository>();
+            services.AddScoped<IMedicationChartService, MedicationChartService>();
+
             services.AddScoped<IPatientService, PatientService>();
             return services;
         }
