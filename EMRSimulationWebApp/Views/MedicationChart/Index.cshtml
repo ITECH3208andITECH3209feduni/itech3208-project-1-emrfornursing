@@ -1,0 +1,1353 @@
+@using EMRSimulation.Domain.Dtos
+@using EMRSimulationWebApp.Models
+@model MedicationChartViewModel
+
+@{
+    var selectedDate = Model.SelectedDate.Date;
+    var today = DateTime.Today;
+    var now = DateTime.Now;
+    var role = User.FindFirst("Role")?.Value ?? string.Empty;
+    var isSupervisor = string.Equals(role, "supervisor", StringComparison.OrdinalIgnoreCase);
+    var isStudent = string.Equals(role, "student", StringComparison.OrdinalIgnoreCase);
+    // Medication name choices include both the existing EMR medication catalogue and
+    // medication names already used in Sprint 5 orders for this patient. This means a
+    // medication the supervisor has already prescribed remains available in the list.
+    var medicationNames = Model.MedicationCatalogue
+        .Where(m => !string.IsNullOrWhiteSpace(m.Name))
+        .Select(m => m.Name.Trim())
+        .Concat(Model.Orders.Where(o => !string.IsNullOrWhiteSpace(o.MedicationName)).Select(o => o.MedicationName.Trim()))
+        .GroupBy(name => name.ToLowerInvariant())
+        .Select(g => g.First())
+        .OrderBy(name => name)
+        .ToList();
+
+    var patientName = $"{Model.Patient.FirstName} {Model.Patient.LastName}".Trim();
+    if (string.IsNullOrWhiteSpace(patientName)) patientName = "Patient";
+
+    // An order is visible on a chart date while it is within its prescribed date range.
+    // Discontinued orders remain visible on the date they were stopped so students can review history.
+    var visibleOrders = Model.Orders
+        .Where(o => o.StartDate.Date <= selectedDate
+            && (!string.Equals(o.Status, "Discontinued", StringComparison.OrdinalIgnoreCase)
+                || !o.DiscontinuedAt.HasValue
+                || o.DiscontinuedAt.Value.ToLocalTime().Date >= selectedDate))
+        .OrderBy(o => o.MedicationName)
+        .ToList();
+
+    var regularOrders = visibleOrders.Where(o => string.Equals(o.MedicationType, "Regular", StringComparison.OrdinalIgnoreCase)).ToList();
+    var prnOrders = visibleOrders.Where(o => string.Equals(o.MedicationType, "PRN", StringComparison.OrdinalIgnoreCase)).ToList();
+    var statOrders = visibleOrders.Where(o => string.Equals(o.MedicationType, "STAT", StringComparison.OrdinalIgnoreCase)).ToList();
+
+    var latestAdministration = Model.Administrations
+        .GroupBy(a => (a.MedicationOrderId, a.AdministrationHour))
+        .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.Id).First());
+
+    List<(int Hour, MedicationChartOrderDto? Order, MedicationChartAdministrationDto? Admin, string State)> BuildMarRows(
+        List<MedicationChartOrderDto> groupOrders,
+        string medicationType)
+    {
+        var rows = new List<(int Hour, MedicationChartOrderDto? Order, MedicationChartAdministrationDto? Admin, string State)>();
+        var groupOrderIds = groupOrders.Select(o => o.Id).ToHashSet();
+        var addedAdministrationIds = new HashSet<int>();
+
+        for (var hour = 0; hour < 24; hour++)
+        {
+            var countBefore = rows.Count;
+
+            // Regular medications have supervisor-assigned scheduled hours.
+            if (string.Equals(medicationType, "Regular", StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (var order in groupOrders.Where(o => o.ScheduleHours.Contains(hour)))
+                {
+                    latestAdministration.TryGetValue((order.Id, hour), out var admin);
+                    if (admin != null) addedAdministrationIds.Add(admin.Id);
+
+                    var discontinued = string.Equals(order.Status, "Discontinued", StringComparison.OrdinalIgnoreCase);
+                    var state = "Scheduled";
+
+                    if (admin != null) state = admin.Status;
+                    else if (discontinued) state = "Discontinued";
+                    else if (selectedDate < today || (selectedDate == today && hour < now.Hour)) state = "Overdue";
+
+                    rows.Add((hour, order, admin, state));
+                }
+            }
+
+            // Each medication group has its own MAR. Recorded PRN/STAT outcomes
+            // appear at the actual administration hour.
+            foreach (var admin in Model.Administrations
+                .Where(a => a.AdministrationHour == hour
+                    && groupOrderIds.Contains(a.MedicationOrderId)
+                    && !addedAdministrationIds.Contains(a.Id)))
+            {
+                var order = groupOrders.FirstOrDefault(o => o.Id == admin.MedicationOrderId);
+                if (order == null) continue;
+
+                addedAdministrationIds.Add(admin.Id);
+                rows.Add((hour, order, admin, admin.Status));
+            }
+
+            // PRN and STAT do not have repeating scheduled times. On today's chart,
+            // show each active PRN/STAT medication as AVAILABLE at the current hour
+            // until an outcome is recorded. This keeps the 24-hour chart useful while
+            // preserving the client's as-required workflow.
+            if (!string.Equals(medicationType, "Regular", StringComparison.OrdinalIgnoreCase)
+                && selectedDate == today
+                && hour == now.Hour)
+            {
+                foreach (var order in groupOrders.Where(o => !string.Equals(o.Status, "Discontinued", StringComparison.OrdinalIgnoreCase)))
+                {
+                    var alreadyRecordedThisHour = Model.Administrations.Any(a =>
+                        a.MedicationOrderId == order.Id && a.AdministrationHour == hour);
+                    if (alreadyRecordedThisHour) continue;
+
+                    var availableState = string.Equals(medicationType, "PRN", StringComparison.OrdinalIgnoreCase)
+                        ? "PRN Available"
+                        : "STAT Available";
+                    rows.Add((hour, order, null, availableState));
+                }
+            }
+
+            if (rows.Count == countBefore)
+                rows.Add((hour, null, null, "Empty"));
+        }
+
+        return rows;
+    }
+
+    var marRowsByGroup = new Dictionary<string, List<(int Hour, MedicationChartOrderDto? Order, MedicationChartAdministrationDto? Admin, string State)>>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Regular"] = BuildMarRows(regularOrders, "Regular"),
+        ["PRN"] = BuildMarRows(prnOrders, "PRN"),
+        ["STAT"] = BuildMarRows(statOrders, "STAT")
+    };
+
+}
+
+<div class="s5-chart" id="s5MedicationChart"
+     data-lab-id="@Model.LabId"
+     data-patient-id="@Model.PatientId"
+     data-date="@selectedDate.ToString("yyyy-MM-dd")"
+     data-role="@role">
+
+    <div class="s5-page-title">Medication Chart</div>
+    <div class="s5-page-subtitle">Review, administer and monitor patient medications.</div>
+
+    @* Patient demographics are already rendered by the existing EMR patient header above this module.
+       Sprint 5 intentionally does not repeat them here. *@
+
+    <section class="s5-panel s5-orders-panel">
+        <div class="s5-panel-title">Medication Orders</div>
+
+        <div class="s5-toolbar">
+            <button type="button" class="s5-btn" id="s5PrevDay">&larr;&nbsp; Previous Day</button>
+            <div class="s5-date-wrap">
+                <input id="s5ChartDate" class="s5-date-input" type="date" value="@selectedDate.ToString("yyyy-MM-dd")" />
+            </div>
+            <button type="button" class="s5-btn" id="s5Today">Today</button>
+            <button type="button" class="s5-btn" id="s5NextDay">Next Day&nbsp; &rarr;</button>
+            <div class="s5-toolbar-divider"></div>
+            <div class="s5-search-wrap">
+                <span class="s5-search-icon">&#128269;</span>
+                <input id="s5Search" class="s5-search-input" type="search" placeholder="Search medication name..." autocomplete="off" />
+            </div>
+            <select id="s5Filter" class="s5-filter-select" aria-label="Medication status filter">
+                <option value="all">All Medications</option>
+                <option value="active">Active Medications</option>
+                <option value="discontinued">Discontinued Medications</option>
+            </select>
+            <div class="s5-toolbar-spacer"></div>
+            @if (isSupervisor)
+            {
+                <button type="button" class="s5-btn" id="s5AddMedication">&#10010;&nbsp;&nbsp; Add Medication</button>
+            }
+        </div>
+
+        <div class="s5-tabs" role="tablist" aria-label="Medication groups">
+            <button type="button" class="s5-tab is-active" data-s5-tab="Regular">Regular Medications</button>
+            <button type="button" class="s5-tab" data-s5-tab="PRN">PRN Medications</button>
+            <button type="button" class="s5-tab" data-s5-tab="STAT">STAT Medications</button>
+        </div>
+
+        @foreach (var group in new[] { (Name: "Regular", Orders: regularOrders), (Name: "PRN", Orders: prnOrders), (Name: "STAT", Orders: statOrders) })
+        {
+            <div class="s5-tab-panel" data-s5-panel="@group.Name" style="@(group.Name == "Regular" ? "" : "display:none")">
+                @if (!group.Orders.Any())
+                {
+                    <div class="s5-empty-orders">No @group.Name medications prescribed.</div>
+                }
+                else
+                {
+                    <div class="s5-order-table-wrap">
+                        <table class="s5-order-table">
+                            <thead>
+                                <tr>
+                                    <th class="s5-col-num">#</th>
+                                    <th class="s5-col-med">Medication</th>
+                                    <th class="s5-col-dose">Dose / Strength</th>
+                                    <th class="s5-col-route">Route</th>
+                                    <th class="s5-col-freq">Frequency</th>
+                                    <th class="s5-col-max">Maximum Dose</th>
+                                    <th class="s5-col-indication">Indication</th>
+                                    <th class="s5-col-sign">Prescriber Signature</th>
+                                    <th class="s5-col-date">Start Date</th>
+                                    <th class="s5-col-status">Status</th>
+                                    <th class="s5-col-actions">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            @{ var rowNumber = 0; }
+                            @foreach (var order in group.Orders)
+                            {
+                                rowNumber++;
+                                var discontinued = string.Equals(order.Status, "Discontinued", StringComparison.OrdinalIgnoreCase);
+                                var searchText = $"{order.MedicationName} {order.Strength} {order.Route} {order.Frequency} {order.Indication} {order.PrescriberName}".ToLowerInvariant();
+                                <tr class="s5-order-row"
+                                    data-medication-type="@group.Name"
+                                    data-search="@searchText"
+                                    data-status="@(discontinued ? "discontinued" : "active")">
+                                    <td class="s5-col-num">@rowNumber</td>
+                                    <td><strong>@order.MedicationName</strong><br /><small>@order.PrescriberName</small></td>
+                                    <td>@order.Strength</td>
+                                    <td>@order.Route</td>
+                                    <td>@order.Frequency</td>
+                                    <td>@order.MaximumDose</td>
+                                    <td>@order.Indication</td>
+                                    <td>@order.PrescriberSignature</td>
+                                    <td>@order.StartDate.ToString("dd-MMM-yyyy")</td>
+                                    <td class="s5-col-status">
+                                        @if (discontinued)
+                                        {
+                                            <span class="s5-status-pill discontinued">Discontinued</span>
+                                        }
+                                        else if (group.Name == "PRN")
+                                        {
+                                            <span class="s5-status-pill prn">PRN Available</span>
+                                        }
+                                        else if (group.Name == "STAT")
+                                        {
+                                            <span class="s5-status-pill stat">STAT Available</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="s5-status-pill active">Active</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="s5-actions-row">
+                                            <button type="button" class="s5-btn s5-btn-small s5-history-button" data-order-id="@order.Id">History</button>
+                                            @if (isSupervisor && !discontinued)
+                                            {
+                                                <button type="button" class="s5-btn s5-btn-small s5-edit-order" data-order-id="@order.Id">Edit</button>
+                                                <button type="button" class="s5-btn s5-btn-small s5-btn-danger s5-discontinue-order" data-order-id="@order.Id">Discontinue</button>
+                                            }
+                                            @if ((isStudent || isSupervisor) && !discontinued && group.Name != "Regular" && selectedDate <= today)
+                                            {
+                                                <button type="button" class="s5-btn s5-btn-small s5-btn-success s5-administer-order" data-order-id="@order.Id">Administer / Mark as Given</button>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+
+    @if (isSupervisor)
+    {
+        <div class="s5-supervisor-note"><strong>Supervisor view:</strong> create/edit/discontinue medication orders and assign Regular administration times here. For demonstration and clinical simulation, you can also click a scheduled or overdue dose to open Medication Administration. Recording still requires a nursing/student signature and a different second co-signature.</div>
+    }
+
+    @foreach (var marGroupName in new[] { "Regular", "PRN", "STAT" })
+    {
+        var marRows = marRowsByGroup[marGroupName];
+        <section class="s5-panel s5-mar-panel s5-mar-group-panel"
+                 data-s5-mar-panel="@marGroupName"
+                 style="@(marGroupName == "Regular" ? "" : "display:none")">
+            <div class="s5-panel-title">24 Hour @marGroupName Medication Record</div>
+
+            @if (marGroupName == "Regular")
+            {
+                @if (isStudent)
+                {
+                    <div class="s5-mar-help"><strong>Regular administration:</strong> click an <strong>Active - Scheduled</strong> or <strong>Overdue</strong> status to open Medication Administration, then record Given, Held or Missed with notes and two signatures.</div>
+                }
+                else if (isSupervisor)
+                {
+                    <div class="s5-mar-help"><strong>Regular medication record:</strong> each supervisor-assigned dose time appears here. Click an <strong>Active - Scheduled</strong> or <strong>Overdue</strong> status to open Medication Administration and record the outcome.</div>
+                }
+            }
+            else if (marGroupName == "PRN")
+            {
+                <div class="s5-mar-help"><strong>PRN medication record:</strong> active PRN medicines appear as <strong>PRN Available</strong> at the current hour. Click that status, or use <strong>Administer / Mark as Given</strong> above, then record Given, Held or Missed. The completed outcome remains in this 24-hour chart.</div>
+            }
+            else
+            {
+                <div class="s5-mar-help"><strong>STAT medication record:</strong> active STAT medicines appear as <strong>STAT Available</strong> at the current hour. Click that status, or use <strong>Administer / Mark as Given</strong> above, then record the outcome. The completed outcome remains in this 24-hour chart.</div>
+            }
+
+            <div class="s5-order-table-wrap">
+                <table class="s5-mar-table">
+                    <thead>
+                        <tr>
+                            <th class="s5-time">Time</th>
+                            <th class="s5-med">Medication</th>
+                            <th class="s5-scheduled-dose">Scheduled Dose</th>
+                            <th class="s5-given-dose">Given Dose</th>
+                            <th class="s5-route">Route</th>
+                            <th class="s5-mar-status">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (var index = 0; index < marRows.Count; index++)
+                        {
+                            var row = marRows[index];
+                            var isFirstForHour = index == 0 || marRows[index - 1].Hour != row.Hour;
+                            var isEmpty = row.Order == null;
+                            var stateClass = row.State.ToLowerInvariant().Replace(" ", "-");
+
+                            var isAvailableAsRequired = row.State == "PRN Available" || row.State == "STAT Available";
+                            var actionable = (isStudent || isSupervisor)
+                                && !isEmpty
+                                && row.Admin == null
+                                && selectedDate <= today
+                                && ((marGroupName == "Regular" && (row.State == "Scheduled" || row.State == "Overdue"))
+                                    || ((marGroupName == "PRN" || marGroupName == "STAT") && isAvailableAsRequired && selectedDate == today));
+
+                            if (isEmpty)
+                            {
+                                <tr class="s5-mar-empty">
+                                    <td class="s5-time">@(row.Hour.ToString("00") + "00")</td>
+                                    <td></td><td></td><td></td><td></td><td></td>
+                                </tr>
+                            }
+                            else
+                            {
+                                <tr class="s5-mar-entry-row @stateClass"
+                                    data-actionable="@(actionable ? "1" : "0")"
+                                    data-order-id="@row.Order!.Id"
+                                    data-hour="@row.Hour"
+                                    data-medication-type="@marGroupName"
+                                    title="@(actionable ? "Double-click to open Medication Administration" : "")">
+                                    <td class="s5-time">@(isFirstForHour ? row.Hour.ToString("00") + "00" : "")</td>
+                                    <td class="s5-med"><strong>@row.Order!.MedicationName</strong></td>
+                                    <td>@row.Order.Strength</td>
+                                    <td>@(row.Admin?.Status == "Given" ? row.Admin.Dose : "")</td>
+                                    <td>@row.Order.Route</td>
+                                    <td>
+                                        @if (row.State == "Given")
+                                        {
+                                            <span class="s5-record-status given">&#10003; Given</span>
+                                        }
+                                        else if (row.State == "Held")
+                                        {
+                                            <span class="s5-record-status held">Held</span>
+                                        }
+                                        else if (row.State == "Missed")
+                                        {
+                                            <span class="s5-record-status missed">! Missed</span>
+                                        }
+                                        else if (row.State == "PRN Available")
+                                        {
+                                            @if (actionable)
+                                            {
+                                                <button type="button" class="s5-record-status s5-status-action s5-mar-admin" style="background:#f4d9ea;border-color:#d7aac9;color:#3f2438" data-order-id="@row.Order.Id" data-hour="@row.Hour" title="Click to administer this PRN medication">PRN Available - Administer</button>
+                                            }
+                                            else
+                                            {
+                                                <span class="s5-record-status" style="background:#f4d9ea;border-color:#d7aac9;color:#3f2438">PRN Available</span>
+                                            }
+                                        }
+                                        else if (row.State == "STAT Available")
+                                        {
+                                            @if (actionable)
+                                            {
+                                                <button type="button" class="s5-record-status s5-status-action s5-mar-admin" style="background:#e5d8f5;border-color:#bca1dc;color:#382657" data-order-id="@row.Order.Id" data-hour="@row.Hour" title="Click to administer this STAT medication">STAT Available - Administer</button>
+                                            }
+                                            else
+                                            {
+                                                <span class="s5-record-status" style="background:#e5d8f5;border-color:#bca1dc;color:#382657">STAT Available</span>
+                                            }
+                                        }
+                                        else if (row.State == "Overdue")
+                                        {
+                                            @if (actionable)
+                                            {
+                                                <button type="button" class="s5-record-status overdue s5-status-action s5-mar-admin" data-order-id="@row.Order.Id" data-hour="@row.Hour" title="Click to record this dose as Given, Held or Missed">! Overdue - Record outcome</button>
+                                            }
+                                            else
+                                            {
+                                                <span class="s5-record-status overdue">! Overdue</span>
+                                            }
+                                        }
+                                        else if (row.State == "Discontinued")
+                                        {
+                                            <span class="s5-record-status discontinued">Discontinued</span>
+                                        }
+                                        else
+                                        {
+                                            @if (actionable)
+                                            {
+                                                <button type="button" class="s5-record-status scheduled s5-status-action s5-mar-admin" data-order-id="@row.Order.Id" data-hour="@row.Hour" title="Click to open Medication Administration">Active - Scheduled</button>
+                                            }
+                                            else
+                                            {
+                                                <span class="s5-record-status scheduled">Active - Scheduled</span>
+                                            }
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="s5-legend">
+                @if (marGroupName == "Regular")
+                {
+                    <span class="s5-legend-item"><span class="s5-legend-box yellow"></span> Scheduled</span>
+                }
+                else if (marGroupName == "PRN")
+                {
+                    <span class="s5-legend-item"><span class="s5-legend-box pink"></span> PRN available</span>
+                }
+                else
+                {
+                    <span class="s5-legend-item"><span class="s5-legend-box purple"></span> STAT available</span>
+                }
+                <span class="s5-legend-item"><span class="s5-legend-box green"></span> Given</span>
+                <span class="s5-legend-item"><span class="s5-legend-box red"></span> Missed</span>
+                <span class="s5-legend-item"><span class="s5-legend-box grey"></span> Discontinued</span>
+            </div>
+        </section>
+    }
+
+    <!-- Supervisor: Add / Edit Medication -->
+    @if (isSupervisor)
+    {
+        <div class="s5-modal-backdrop" id="s5OrderModal" aria-hidden="true">
+            <div class="s5-modal" role="dialog" aria-modal="true" aria-labelledby="s5OrderModalTitle">
+                <div class="s5-modal-header">
+                    <span id="s5OrderModalTitle">Add Medication</span>
+                    <button type="button" class="s5-modal-close" data-s5-close="s5OrderModal">&times;</button>
+                </div>
+                <div class="s5-modal-body">
+                    <input type="hidden" id="s5OrderId" value="0" />
+                    <div class="s5-form-grid">
+                        <div class="s5-form-field">
+                            <label class="s5-form-label" for="s5MedicationType">Medication group *</label>
+                            <select class="s5-form-control" id="s5MedicationType">
+                                <option value="Regular">Regular</option>
+                                <option value="PRN">PRN</option>
+                                <option value="STAT">STAT</option>
+                            </select>
+                        </div>
+                        <div class="s5-form-field span-2">
+                            <label class="s5-form-label" for="s5MedicationName">Medication name *</label>
+                            <select class="s5-form-control" id="s5MedicationName">
+                                <option value="">Select medication from your existing EMR list</option>
+                                @foreach (var medicationName in medicationNames)
+                                {
+                                    <option value="@medicationName">@medicationName</option>
+                                }
+                                <option value="__custom__">Other / enter medication manually</option>
+                            </select>
+                            <div id="s5CustomMedicationWrap" style="display:none; margin-top:6px;">
+                                <input class="s5-form-control" id="s5CustomMedicationName" type="text" placeholder="Enter medication name" />
+                            </div>
+                            @if (!medicationNames.Any())
+                            {
+                                <small>No medication names are configured yet. Choose Other, or add a medication name under Settings.</small>
+                            }
+                        </div>
+                        <div class="s5-form-field">
+                            <label class="s5-form-label" for="s5StrengthValue">Dose / Strength value *</label>
+                            <input class="s5-form-control" id="s5StrengthValue" type="number" min="0" step="any" inputmode="decimal" placeholder="e.g. 500" />
+                        </div>
+                        <div class="s5-form-field">
+                            <label class="s5-form-label" for="s5Measure">Measure / Unit *</label>
+                            <select class="s5-form-control" id="s5Measure">
+                                <option value="">Select unit</option>
+                                <option value="mcg">mcg</option>
+                                <option value="mg">mg</option>
+                                <option value="g">g</option>
+                                <option value="kg">kg</option>
+                                <option value="mL">mL</option>
+                                <option value="L">L</option>
+                                <option value="units">units</option>
+                                <option value="IU">IU</option>
+                                <option value="mmol">mmol</option>
+                                <option value="mEq">mEq</option>
+                                <option value="tablet(s)">tablet(s)</option>
+                                <option value="capsule(s)">capsule(s)</option>
+                                <option value="puff(s)">puff(s)</option>
+                                <option value="drop(s)">drop(s)</option>
+                                <option value="%">%</option>
+                                <option value="__custom__">Other...</option>
+                            </select>
+                            <input class="s5-form-control s5-followup-control" id="s5MeasureCustom" type="text" placeholder="Enter unit" style="display:none" />
+                        </div>
+                        <div class="s5-form-field">
+                            <label class="s5-form-label" for="s5Route">Route *</label>
+                            <select class="s5-form-control" id="s5Route">
+                                <option value="">Select route</option>
+                                <option value="PO">PO - Oral</option>
+                                <option value="IV">IV - Intravenous</option>
+                                <option value="IM">IM - Intramuscular</option>
+                                <option value="SC">SC - Subcutaneous</option>
+                                <option value="SL">SL - Sublingual</option>
+                                <option value="INH">INH - Inhaled</option>
+                                <option value="NEB">NEB - Nebulised</option>
+                                <option value="TOP">TOP - Topical</option>
+                                <option value="PR">PR - Rectal</option>
+                                <option value="PV">PV - Vaginal</option>
+                                <option value="NG">NG - Nasogastric</option>
+                                <option value="PEG">PEG</option>
+                                <option value="__custom__">Other...</option>
+                            </select>
+                            <input class="s5-form-control s5-followup-control" id="s5RouteCustom" type="text" placeholder="Enter route" style="display:none" />
+                        </div>
+                        <div class="s5-form-field">
+                            <label class="s5-form-label" for="s5Frequency">Frequency *</label>
+                            <select class="s5-form-control" id="s5Frequency">
+                                <option value="">Select frequency</option>
+                                <option value="Once">Once</option>
+                                <option value="STAT">STAT</option>
+                                <option value="PRN">PRN - As required</option>
+                                <option value="Daily">Daily</option>
+                                <option value="Mane">Mane - Morning</option>
+                                <option value="Nocte">Nocte - Night</option>
+                                <option value="BD">BD - Twice daily</option>
+                                <option value="TDS">TDS - Three times daily</option>
+                                <option value="QID">QID - Four times daily</option>
+                                <option value="Q4H">Q4H - Every 4 hours</option>
+                                <option value="Q6H">Q6H - Every 6 hours</option>
+                                <option value="Q8H">Q8H - Every 8 hours</option>
+                                <option value="Q12H">Q12H - Every 12 hours</option>
+                                <option value="Weekly">Weekly</option>
+                                <option value="__custom__">Other...</option>
+                            </select>
+                            <input class="s5-form-control s5-followup-control" id="s5FrequencyCustom" type="text" placeholder="Enter frequency" style="display:none" />
+                        </div>
+                        <div class="s5-form-field span-2">
+                            <label class="s5-form-label">Maximum dose *</label>
+                            <div class="s5-max-dose-row">
+                                <input class="s5-form-control" id="s5MaximumDoseValue" type="number" min="0" step="any" inputmode="decimal" placeholder="Value" />
+                                <select class="s5-form-control" id="s5MaximumDoseUnit">
+                                    <option value="">Unit</option>
+                                    <option value="mcg">mcg</option>
+                                    <option value="mg">mg</option>
+                                    <option value="g">g</option>
+                                    <option value="mL">mL</option>
+                                    <option value="units">units</option>
+                                    <option value="IU">IU</option>
+                                    <option value="mmol">mmol</option>
+                                    <option value="tablet(s)">tablet(s)</option>
+                                    <option value="capsule(s)">capsule(s)</option>
+                                    <option value="puff(s)">puff(s)</option>
+                                    <option value="drop(s)">drop(s)</option>
+                                    <option value="__custom__">Other...</option>
+                                </select>
+                                <select class="s5-form-control" id="s5MaximumDosePeriod">
+                                    <option value="/ 24 hrs">per 24 hrs</option>
+                                    <option value="/ 12 hrs">per 12 hrs</option>
+                                    <option value="/ 8 hrs">per 8 hrs</option>
+                                    <option value="/ 6 hrs">per 6 hrs</option>
+                                    <option value="/ dose">per dose</option>
+                                    <option value="N/A">N/A</option>
+                                    <option value="__custom__">Other...</option>
+                                </select>
+                            </div>
+                            <div class="s5-max-dose-row s5-followup-control" id="s5MaximumDoseCustomWrap" style="display:none">
+                                <input class="s5-form-control" id="s5MaximumDoseUnitCustom" type="text" placeholder="Custom unit (if needed)" />
+                                <input class="s5-form-control" id="s5MaximumDosePeriodCustom" type="text" placeholder="Custom period, e.g. / 48 hrs" />
+                            </div>
+                            <small>Choose N/A only where a maximum dose is not applicable to the prescribed order.</small>
+                        </div>
+                        <div class="s5-form-field span-2">
+                            <label class="s5-form-label" for="s5Indication">Indication *</label>
+                            <input class="s5-form-control" id="s5Indication" type="text" placeholder="Why the patient is receiving this medication" />
+                        </div>
+                        <div class="s5-form-field">
+                            <label class="s5-form-label" for="s5PrescriberName">Prescriber / Medical Officer *</label>
+                            <input class="s5-form-control" id="s5PrescriberName" type="text" placeholder="Enter prescriber name" />
+                        </div>
+                        <div class="s5-form-field">
+                            <label class="s5-form-label" for="s5PrescriberSignature">Prescriber signature *</label>
+                            <input class="s5-form-control" id="s5PrescriberSignature" type="text" placeholder="Enter prescriber signature / initials" />
+                        </div>
+                        <div class="s5-form-field">
+                            <label class="s5-form-label" for="s5StartDate">Start date *</label>
+                            <input class="s5-form-control" id="s5StartDate" type="date" />
+                        </div>
+                    </div>
+
+                    <div class="s5-schedule-wrap" id="s5ScheduleWrap">
+                        <div class="s5-schedule-title">Assign administration times (24-hour clock) *</div>
+                        <div class="s5-schedule-grid">
+                            @for (var h = 0; h < 24; h++)
+                            {
+                                <div class="s5-hour-check">
+                                    <input type="checkbox" class="s5-schedule-hour" id="s5Hour_@h" value="@h" />
+                                    <label for="s5Hour_@h">@(h.ToString("00") + "00")</label>
+                                </div>
+                            }
+                        </div>
+                        <small>Regular medications require at least one administration time. PRN and STAT medications are administered as required.</small>
+                    </div>
+                    <div class="s5-error" id="s5OrderError"></div>
+                </div>
+                <div class="s5-modal-footer">
+                    <button type="button" class="s5-btn" data-s5-close="s5OrderModal">Cancel</button>
+                    <button type="button" class="s5-btn s5-btn-dark" id="s5SaveOrder">Save Medication</button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Medication administration / shared history modal -->
+    <div class="s5-modal-backdrop" id="s5AdministrationModal" aria-hidden="true">
+        <div class="s5-modal" role="dialog" aria-modal="true" aria-labelledby="s5AdminTitle">
+            <div class="s5-modal-header">
+                <span id="s5AdminTitle">Medication Administration</span>
+                <button type="button" class="s5-modal-close" data-s5-close="s5AdministrationModal">&times;</button>
+            </div>
+            <div class="s5-modal-body">
+                <div class="s5-medication-summary">
+                    <h4 id="s5AdminMedication">Medication</h4>
+                    <div class="s5-summary-grid">
+                        <div><strong>Strength:</strong> <span id="s5AdminStrength"></span></div>
+                        <div><strong>Route:</strong> <span id="s5AdminRoute"></span></div>
+                        <div><strong>Frequency:</strong> <span id="s5AdminFrequency"></span></div>
+                        <div><strong>Maximum Dose:</strong> <span id="s5AdminMaximumDose"></span></div>
+                        <div><strong>Indication:</strong> <span id="s5AdminIndication"></span></div>
+                        <div><strong>Prescriber:</strong> <span id="s5AdminPrescriber"></span></div>
+                        <div><strong>Prescriber Signature:</strong> <span id="s5AdminPrescriberSignature"></span></div>
+                        <div><strong>Allergy:</strong> <span class="s5-alert-text">@(Model.Patient.Allergy ?? "N/A")</span></div>
+                        <div><strong>Intolerance / Alert:</strong> @((Model.Patient.Intolerance ?? Model.Patient.Alerts) ?? "N/A")</div>
+                    </div>
+                </div>
+
+                @if (isStudent || isSupervisor)
+                {
+                    <div id="s5AdministrationForm">
+                        <div class="s5-outcome-title">Mark medication as:</div>
+                        <div class="s5-outcome-grid">
+                            <div class="s5-outcome-option given"><input id="s5OutcomeGiven" type="radio" name="s5Outcome" value="Given" checked /><label for="s5OutcomeGiven">&#10003; Given</label></div>
+                            <div class="s5-outcome-option held"><input id="s5OutcomeHeld" type="radio" name="s5Outcome" value="Held" /><label for="s5OutcomeHeld">Held</label></div>
+                            <div class="s5-outcome-option missed"><input id="s5OutcomeMissed" type="radio" name="s5Outcome" value="Missed" /><label for="s5OutcomeMissed">Missed</label></div>
+                        </div>
+
+                        <div class="s5-admin-grid">
+                            <div class="s5-form-field">
+                                <label class="s5-form-label" for="s5AdminDate">Administration date</label>
+                                <input class="s5-form-control" id="s5AdminDate" type="date" readonly />
+                            </div>
+                            <div class="s5-form-field">
+                                <label class="s5-form-label" for="s5AdminHour">Administration time</label>
+                                <select class="s5-form-control" id="s5AdminHour"></select>
+                            </div>
+                            <div class="s5-form-field">
+                                <label class="s5-form-label" for="s5AdminDose">Dose actually administered *</label>
+                                <input class="s5-form-control" id="s5AdminDose" type="text" placeholder="Enter dose actually given" />
+                                <button type="button" class="s5-btn s5-btn-small" id="s5UsePrescribedDose" style="margin-top:5px">Use prescribed strength</button>
+                            </div>
+                            <div class="s5-form-field span-3">
+                                <label class="s5-form-label" for="s5AdminNotes" id="s5AdminNotesLabel">Clinical notes</label>
+                                <textarea class="s5-form-control" id="s5AdminNotes" placeholder="Optional clinical note for a Given medication."></textarea>
+                                <small id="s5AdminNotesHelp">For Held or Missed, explain why the medication was not given. PRN administration also requires a clinical reason.</small>
+                            </div>
+                        </div>
+
+                        <div class="s5-signature-grid">
+                            <div class="s5-signature-card">
+                                <h5>1. Nursing / Student Signature</h5>
+                                <label class="s5-form-label" for="s5StudentSignature">Name / initials *</label>
+                                <input class="s5-form-control" id="s5StudentSignature" type="text" placeholder="Nursing / student signature or initials" />
+                            </div>
+                            <div class="s5-signature-card">
+                                <h5>2. Second Co-signature (Supervisor)</h5>
+                                <label class="s5-form-label" for="s5CoSignature">Name / initials *</label>
+                                <input class="s5-form-control" id="s5CoSignature" type="text" placeholder="Second co-signature" />
+                            </div>
+                        </div>
+                        <div class="s5-error" id="s5AdminError"></div>
+                    </div>
+                }
+
+                <div class="s5-resource-row">
+                    <a class="s5-btn s5-resource-link" href="https://www.mims.com.au/" target="_blank" rel="noopener">View on MIMS &#8599;</a>
+                    <span class="s5-btn s5-resource-link" role="tab" aria-disabled="true" title="Reference tab only - no external link attached">Injectables Handbook</span>
+                </div>
+
+                <div class="s5-history-wrap">
+                    <div class="s5-history-title">Administration History</div>
+                    <div class="s5-history-scroll" id="s5HistoryContainer"><div class="s5-history-empty">No administration history loaded.</div></div>
+                </div>
+            </div>
+            <div class="s5-modal-footer">
+                <button type="button" class="s5-btn" data-s5-close="s5AdministrationModal">Cancel</button>
+                @if (isStudent || isSupervisor)
+                {
+                    <button type="button" class="s5-btn s5-btn-dark" id="s5ConfirmAdministration">Confirm Administration</button>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<style id="s5-medication-order-modal-styles">
+/* Medication order modal layout. */
+#s5OrderModal .s5-modal { width:min(980px,calc(100vw - 36px)); max-width:980px; }
+#s5OrderModal .s5-modal-header { background:linear-gradient(90deg,#25282c,#3a3d42); color:#fff; padding:16px 20px; }
+#s5OrderModal .s5-modal-header span { font-size:22px; font-weight:700; }
+#s5OrderModal .s5-modal-close { color:#fff; font-size:23px; }
+#s5OrderModal .s5-modal-body { padding:18px 18px 12px; }
+#s5OrderModal .s5-form-grid { display:grid !important; grid-template-columns:repeat(12,minmax(0,1fr)) !important; gap:14px 18px !important; align-items:start; }
+#s5OrderModal .s5-form-field { grid-column:span 6; }
+#s5OrderModal .s5-form-field:has(#s5MedicationType) { grid-column:1 / span 6; grid-row:1; }
+#s5OrderModal .s5-form-field:has(#s5StartDate) { grid-column:7 / span 6; grid-row:1; }
+#s5OrderModal .s5-form-field:has(#s5MedicationName) { grid-column:1 / -1; grid-row:2; }
+#s5OrderModal .s5-form-field:has(#s5StrengthValue) { grid-column:1 / span 4; grid-row:3; }
+#s5OrderModal .s5-form-field:has(#s5Measure) { grid-column:5 / span 2; grid-row:3; }
+#s5OrderModal .s5-form-field:has(#s5Route) { grid-column:7 / span 6; grid-row:3; }
+#s5OrderModal .s5-form-field:has(#s5Frequency) { grid-column:1 / span 6; grid-row:4; }
+#s5OrderModal .s5-form-field:has(#s5MaximumDoseValue) { grid-column:7 / span 6; grid-row:4; }
+#s5OrderModal .s5-form-field:has(#s5Indication) { grid-column:1 / span 6; grid-row:5; }
+#s5OrderModal .s5-form-field:has(#s5PrescriberName) { grid-column:7 / span 6; grid-row:5; }
+#s5OrderModal .s5-form-field:has(#s5PrescriberSignature) { grid-column:1 / span 6; grid-row:6; }
+#s5OrderModal .s5-form-label { display:block; font-weight:700; margin-bottom:6px; }
+#s5OrderModal .s5-form-control { min-height:44px; font-size:15px; }
+#s5OrderModal .s5-max-dose-row { display:grid; grid-template-columns:1.1fr .8fr 1fr; gap:8px; }
+#s5OrderModal .s5-schedule-wrap { margin-top:18px; border:1px solid #d0d3d6; padding:14px; background:#fafafa; }
+#s5OrderModal .s5-schedule-title { font-size:16px; font-weight:700; margin-bottom:10px; }
+#s5OrderModal .s5-modal-footer { padding:14px 18px 18px; }
+@@media(max-width:820px){
+ #s5OrderModal .s5-form-grid{grid-template-columns:1fr!important;}
+ #s5OrderModal .s5-form-field{grid-column:1!important;grid-row:auto!important;}
+ #s5OrderModal .s5-max-dose-row{grid-template-columns:1fr;}
+}
+</style>
+
+<script>
+(function () {
+    const root = document.getElementById('s5MedicationChart');
+    if (!root) return;
+
+    const labId = Number(root.dataset.labId || 0);
+    const patientId = Number(root.dataset.patientId || 0);
+    const selectedDate = root.dataset.date;
+    const role = (root.dataset.role || '').toLowerCase();
+    let currentOrder = null;
+
+    const qs = (selector, parent) => (parent || document).querySelector(selector);
+    const qsa = (selector, parent) => Array.from((parent || document).querySelectorAll(selector));
+
+    function escapeHtml(value) {
+        return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+
+    function showModal(id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.add('is-open');
+        el.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeModal(id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.remove('is-open');
+        el.setAttribute('aria-hidden', 'true');
+    }
+
+    qsa('[data-s5-close]').forEach(btn => btn.addEventListener('click', () => closeModal(btn.dataset.s5Close)));
+    qsa('.s5-modal-backdrop').forEach(backdrop => backdrop.addEventListener('mousedown', e => {
+        if (e.target === backdrop) closeModal(backdrop.id);
+    }));
+
+    async function api(url, options) {
+        const response = await fetch(url, options || {});
+        const text = await response.text();
+        let payload = null;
+        if (text) {
+            try { payload = JSON.parse(text); } catch { payload = text; }
+        }
+        if (!response.ok) {
+            const message = typeof payload === 'string' ? payload : (payload && payload.message ? payload.message : 'Request failed.');
+            throw new Error(message);
+        }
+        return payload;
+    }
+
+    async function reload(date) {
+        try {
+            const html = await api('/MedicationChart/Index?labId=' + encodeURIComponent(labId) + '&patientId=' + encodeURIComponent(patientId) + '&date=' + encodeURIComponent(date));
+            const holder = document.getElementById('content-area');
+            if (holder) {
+                if (window.jQuery) window.jQuery(holder).html(html);
+                else holder.innerHTML = html;
+            }
+        } catch (error) {
+            alert(error.message);
+        }
+    }
+
+    function addDays(dateText, days) {
+        const d = new Date(dateText + 'T12:00:00');
+        d.setDate(d.getDate() + days);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return y + '-' + m + '-' + day;
+    }
+
+    qs('#s5PrevDay')?.addEventListener('click', () => reload(addDays(selectedDate, -1)));
+    qs('#s5NextDay')?.addEventListener('click', () => reload(addDays(selectedDate, 1)));
+    qs('#s5Today')?.addEventListener('click', () => {
+        const d = new Date();
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        reload(y + '-' + m + '-' + day);
+    });
+    qs('#s5ChartDate')?.addEventListener('change', e => { if (e.target.value) reload(e.target.value); });
+
+    // Keep the medication list and its 24-hour MAR synchronized.
+    // Switching Regular / PRN / STAT switches BOTH sections together.
+    const groupStorageKey = 's5MedicationGroup:' + labId + ':' + patientId;
+
+    function activateMedicationGroup(groupName, remember) {
+        const wanted = ['Regular', 'PRN', 'STAT'].includes(groupName) ? groupName : 'Regular';
+
+        qsa('.s5-tab').forEach(tab => {
+            tab.classList.toggle('is-active', tab.dataset.s5Tab === wanted);
+        });
+
+        qsa('.s5-tab-panel').forEach(panel => {
+            panel.style.display = panel.dataset.s5Panel === wanted ? '' : 'none';
+        });
+
+        qsa('.s5-mar-group-panel').forEach(panel => {
+            panel.style.display = panel.dataset.s5MarPanel === wanted ? '' : 'none';
+        });
+
+        if (remember !== false) {
+            try { sessionStorage.setItem(groupStorageKey, wanted); } catch { }
+        }
+
+        applyOrderFilter();
+    }
+
+    qsa('.s5-tab').forEach(tab => tab.addEventListener('click', () => {
+        activateMedicationGroup(tab.dataset.s5Tab || 'Regular', true);
+    }));
+
+    let initialGroup = 'Regular';
+    try {
+        const savedGroup = sessionStorage.getItem(groupStorageKey);
+        if (savedGroup) initialGroup = savedGroup;
+    } catch { }
+    activateMedicationGroup(initialGroup, false);
+
+    function applyOrderFilter() {
+        const search = (qs('#s5Search')?.value || '').trim().toLowerCase();
+        const filter = qs('#s5Filter')?.value || 'all';
+        qsa('.s5-order-row').forEach(row => {
+            const searchOk = !search || (row.dataset.search || '').includes(search);
+            const statusOk = filter === 'all' || row.dataset.status === filter;
+            row.style.display = searchOk && statusOk ? '' : 'none';
+        });
+    }
+    qs('#s5Search')?.addEventListener('input', applyOrderFilter);
+    qs('#s5Filter')?.addEventListener('change', applyOrderFilter);
+
+    function showError(id, message) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = message || '';
+        el.classList.toggle('show', Boolean(message));
+    }
+
+    async function getOrder(id) {
+        return await api('/MedicationChart/GetOrder?id=' + encodeURIComponent(id));
+    }
+
+    async function renderHistory(orderId) {
+        const holder = document.getElementById('s5HistoryContainer');
+        if (!holder) return;
+        holder.innerHTML = '<div class="s5-history-empty">Loading administration history...</div>';
+        try {
+            const rows = await api('/MedicationChart/History?orderId=' + encodeURIComponent(orderId));
+            if (!rows || !rows.length) {
+                holder.innerHTML = '<div class="s5-history-empty">No previous administrations recorded.</div>';
+                return;
+            }
+            holder.innerHTML = '<table class="s5-history-table"><thead><tr><th>Date / Time</th><th>Status</th><th>Dose</th><th>Student</th><th>Co-signature</th><th>Notes</th></tr></thead><tbody>' +
+                rows.map(r => '<tr><td>' + escapeHtml(r.date + ' ' + r.time) + '</td><td>' + escapeHtml(r.status) + '</td><td>' + escapeHtml(r.dose) + '</td><td>' + escapeHtml(r.studentSignature) + '</td><td>' + escapeHtml(r.coSignature) + '</td><td>' + escapeHtml(r.notes) + '</td></tr>').join('') +
+                '</tbody></table>';
+        } catch (error) {
+            holder.innerHTML = '<div class="s5-history-empty">' + escapeHtml(error.message) + '</div>';
+        }
+    }
+
+    function fillMedicationSummary(order, historyOnly) {
+        currentOrder = order;
+        qs('#s5AdminTitle').textContent = historyOnly ? 'Medication Administration History' : 'Medication Administration';
+        qs('#s5AdminMedication').textContent = order.medicationName + ' - ' + order.medicationType;
+        qs('#s5AdminStrength').textContent = order.strength || '';
+        qs('#s5AdminRoute').textContent = order.route || '';
+        qs('#s5AdminFrequency').textContent = order.frequency || '';
+        qs('#s5AdminMaximumDose').textContent = order.maximumDose || '';
+        qs('#s5AdminIndication').textContent = order.indication || '';
+        qs('#s5AdminPrescriber').textContent = order.prescriberName || '';
+        qs('#s5AdminPrescriberSignature').textContent = order.prescriberSignature || '';
+        if (role === 'student' || role === 'supervisor') {
+            const form = qs('#s5AdministrationForm');
+            if (form) form.style.display = historyOnly ? 'none' : '';
+            const confirm = qs('#s5ConfirmAdministration');
+            if (confirm) confirm.style.display = historyOnly ? 'none' : '';
+        }
+    }
+
+    async function openHistory(orderId) {
+        try {
+            const order = await getOrder(orderId);
+            fillMedicationSummary(order, true);
+            await renderHistory(orderId);
+            showModal('s5AdministrationModal');
+        } catch (error) {
+            alert(error.message);
+        }
+    }
+
+    qsa('.s5-history-button').forEach(btn => btn.addEventListener('click', () => openHistory(Number(btn.dataset.orderId))));
+
+    @if (isSupervisor)
+    {
+        <text>
+        function updateMedicationNameVisibility() {
+            const select = qs('#s5MedicationName');
+            const customWrap = qs('#s5CustomMedicationWrap');
+            if (!select || !customWrap) return;
+            customWrap.style.display = select.value === '__custom__' ? '' : 'none';
+            if (select.value !== '__custom__') qs('#s5CustomMedicationName').value = '';
+        }
+
+        function selectedMedicationName() {
+            const select = qs('#s5MedicationName');
+            if (!select) return '';
+            return select.value === '__custom__'
+                ? (qs('#s5CustomMedicationName').value || '').trim()
+                : (select.value || '').trim();
+        }
+
+        function setMedicationName(name) {
+            const select = qs('#s5MedicationName');
+            if (!select) return;
+            const wanted = (name || '').trim();
+            const option = Array.from(select.options).find(x => x.value.toLowerCase() === wanted.toLowerCase());
+            if (wanted && option && option.value !== '__custom__') {
+                select.value = option.value;
+                qs('#s5CustomMedicationName').value = '';
+            } else if (wanted) {
+                select.value = '__custom__';
+                qs('#s5CustomMedicationName').value = wanted;
+            } else {
+                select.value = '';
+                qs('#s5CustomMedicationName').value = '';
+            }
+            updateMedicationNameVisibility();
+        }
+
+        function splitStrengthAndMeasure(fullValue) {
+            const text = (fullValue || '').trim();
+            if (!text) return { value: '', measure: '' };
+            const match = text.match(/^(.+?)\s*(tablet\(s\)|capsule\(s\)|puff\(s\)|drop\(s\)|micrograms|mcg|mg|kg|mL|mmol|mEq|units|unit|IU|g|L|%)$/i);
+            if (!match) return { value: text, measure: '' };
+            return { value: match[1].trim(), measure: match[2].trim() };
+        }
+
+        function updateCustomSelect(selectId, customId) {
+            const select = qs('#' + selectId);
+            const custom = qs('#' + customId);
+            if (!select || !custom) return;
+            custom.style.display = select.value === '__custom__' ? '' : 'none';
+            if (select.value !== '__custom__') custom.value = '';
+        }
+
+        function selectedValue(selectId, customId) {
+            const select = qs('#' + selectId);
+            const custom = qs('#' + customId);
+            if (!select) return '';
+            return select.value === '__custom__' ? (custom?.value || '').trim() : (select.value || '').trim();
+        }
+
+        function setSelectOrCustom(selectId, customId, value) {
+            const select = qs('#' + selectId);
+            const custom = qs('#' + customId);
+            if (!select) return;
+            const wanted = (value || '').trim();
+            const option = Array.from(select.options).find(x => x.value.toLowerCase() === wanted.toLowerCase());
+            if (wanted && option && option.value !== '__custom__') {
+                select.value = option.value;
+                if (custom) custom.value = '';
+            } else if (wanted) {
+                select.value = '__custom__';
+                if (custom) custom.value = wanted;
+            } else {
+                select.value = '';
+                if (custom) custom.value = '';
+            }
+            updateCustomSelect(selectId, customId);
+        }
+
+        function updateMaximumDoseCustomVisibility() {
+            updateCustomSelect('s5MaximumDoseUnit', 's5MaximumDoseUnitCustom');
+            const period = qs('#s5MaximumDosePeriod');
+            const customPeriod = qs('#s5MaximumDosePeriodCustom');
+            const wrap = qs('#s5MaximumDoseCustomWrap');
+            const value = qs('#s5MaximumDoseValue');
+            const unit = qs('#s5MaximumDoseUnit');
+            if (!period || !wrap) return;
+            const periodCustom = period.value === '__custom__';
+            const unitCustom = unit?.value === '__custom__';
+            wrap.style.display = (periodCustom || unitCustom) ? '' : 'none';
+            if (customPeriod) {
+                customPeriod.style.display = periodCustom ? '' : 'none';
+                if (!periodCustom) customPeriod.value = '';
+            }
+            const isNA = period.value === 'N/A';
+            if (value) value.disabled = isNA;
+            if (unit) unit.disabled = isNA;
+            if (isNA) {
+                if (value) value.value = '';
+                if (unit) unit.value = '';
+                const unitCustomInput = qs('#s5MaximumDoseUnitCustom');
+                if (unitCustomInput) unitCustomInput.value = '';
+            }
+        }
+
+        function getMaximumDose() {
+            const period = qs('#s5MaximumDosePeriod')?.value || '';
+            if (period === 'N/A') return 'N/A';
+            const value = (qs('#s5MaximumDoseValue')?.value || '').trim();
+            const unit = selectedValue('s5MaximumDoseUnit', 's5MaximumDoseUnitCustom');
+            const periodText = period === '__custom__' ? (qs('#s5MaximumDosePeriodCustom')?.value || '').trim() : period;
+            if (!value || !unit || !periodText) return '';
+            return (value + ' ' + unit + ' ' + periodText).replace(/\s+/g, ' ').trim();
+        }
+
+        function setMaximumDose(fullValue) {
+            const text = (fullValue || '').trim();
+            qs('#s5MaximumDoseValue').value = '';
+            qs('#s5MaximumDoseUnit').value = '';
+            qs('#s5MaximumDoseUnitCustom').value = '';
+            qs('#s5MaximumDosePeriod').value = '/ 24 hrs';
+            qs('#s5MaximumDosePeriodCustom').value = '';
+            if (!text) { updateMaximumDoseCustomVisibility(); return; }
+            if (text.toUpperCase() === 'N/A') {
+                qs('#s5MaximumDosePeriod').value = 'N/A';
+                updateMaximumDoseCustomVisibility();
+                return;
+            }
+            const match = text.match(/^(.+?)\s+(mcg|mg|g|mL|units|IU|mmol|tablet\(s\)|capsule\(s\)|puff\(s\)|drop\(s\))\s+(\/\s*(?:24|12|8|6)\s*hrs|\/\s*dose)$/i);
+            if (match) {
+                qs('#s5MaximumDoseValue').value = match[1].trim();
+                setSelectOrCustom('s5MaximumDoseUnit', 's5MaximumDoseUnitCustom', match[2].trim());
+                const normalizedPeriod = match[3].replace(/\s+/g, ' ').replace('/ ', '/ ');
+                const pOption = Array.from(qs('#s5MaximumDosePeriod').options).find(x => x.value.toLowerCase() === normalizedPeriod.toLowerCase());
+                if (pOption) qs('#s5MaximumDosePeriod').value = pOption.value;
+                else { qs('#s5MaximumDosePeriod').value = '__custom__'; qs('#s5MaximumDosePeriodCustom').value = match[3].trim(); }
+            } else {
+                const generic = text.match(/^(.+?)\s+([^\s]+)\s+(\/.*)$/);
+                if (generic) {
+                    qs('#s5MaximumDoseValue').value = generic[1].trim();
+                    setSelectOrCustom('s5MaximumDoseUnit', 's5MaximumDoseUnitCustom', generic[2].trim());
+                    qs('#s5MaximumDosePeriod').value = '__custom__';
+                    qs('#s5MaximumDosePeriodCustom').value = generic[3].trim();
+                } else {
+                    qs('#s5MaximumDoseValue').value = text;
+                    qs('#s5MaximumDoseUnit').value = '__custom__';
+                    qs('#s5MaximumDoseUnitCustom').value = '';
+                    qs('#s5MaximumDosePeriod').value = '__custom__';
+                    qs('#s5MaximumDosePeriodCustom').value = '';
+                }
+            }
+            updateMaximumDoseCustomVisibility();
+        }
+
+        qs('#s5MedicationName')?.addEventListener('change', updateMedicationNameVisibility);
+        qs('#s5Measure')?.addEventListener('change', () => updateCustomSelect('s5Measure', 's5MeasureCustom'));
+        qs('#s5Route')?.addEventListener('change', () => updateCustomSelect('s5Route', 's5RouteCustom'));
+        qs('#s5Frequency')?.addEventListener('change', () => updateCustomSelect('s5Frequency', 's5FrequencyCustom'));
+        qs('#s5MaximumDoseUnit')?.addEventListener('change', updateMaximumDoseCustomVisibility);
+        qs('#s5MaximumDosePeriod')?.addEventListener('change', updateMaximumDoseCustomVisibility);
+
+        function updateScheduleVisibility() {
+            const isRegular = qs('#s5MedicationType').value === 'Regular';
+            qs('#s5ScheduleWrap').style.display = isRegular ? '' : 'none';
+            if (!isRegular) qsa('.s5-schedule-hour').forEach(x => x.checked = false);
+        }
+
+        function clearOrderForm() {
+            qs('#s5OrderId').value = '0';
+            qs('#s5OrderModalTitle').textContent = 'Add Medication';
+            qs('#s5MedicationType').value = 'Regular';
+            setMedicationName('');
+            qs('#s5StrengthValue').value = '';
+            setSelectOrCustom('s5Measure', 's5MeasureCustom', '');
+            setSelectOrCustom('s5Route', 's5RouteCustom', '');
+            setSelectOrCustom('s5Frequency', 's5FrequencyCustom', '');
+            qs('#s5MaximumDoseValue').value = '';
+            setSelectOrCustom('s5MaximumDoseUnit', 's5MaximumDoseUnitCustom', '');
+            qs('#s5MaximumDosePeriod').value = '/ 24 hrs';
+            qs('#s5MaximumDosePeriodCustom').value = '';
+            updateMaximumDoseCustomVisibility();
+            qs('#s5Indication').value = '';
+            qs('#s5PrescriberName').value = '';
+            qs('#s5PrescriberSignature').value = '';
+            qs('#s5StartDate').value = selectedDate;
+            qsa('.s5-schedule-hour').forEach(x => x.checked = false);
+            showError('s5OrderError', '');
+            updateScheduleVisibility();
+        }
+
+        function syncFrequencyWithMedicationType() {
+            const type = qs('#s5MedicationType').value;
+            const currentFrequency = selectedValue('s5Frequency', 's5FrequencyCustom');
+            if (type === 'PRN') {
+                setSelectOrCustom('s5Frequency', 's5FrequencyCustom', 'PRN');
+            } else if (type === 'STAT') {
+                setSelectOrCustom('s5Frequency', 's5FrequencyCustom', 'STAT');
+            } else if (currentFrequency === 'PRN' || currentFrequency === 'STAT') {
+                setSelectOrCustom('s5Frequency', 's5FrequencyCustom', '');
+            }
+        }
+
+        qs('#s5MedicationType')?.addEventListener('change', () => {
+            updateScheduleVisibility();
+            syncFrequencyWithMedicationType();
+        });
+        qs('#s5AddMedication')?.addEventListener('click', () => {
+            clearOrderForm();
+            showModal('s5OrderModal');
+        });
+
+        qsa('.s5-edit-order').forEach(btn => btn.addEventListener('click', async () => {
+            try {
+                const order = await getOrder(Number(btn.dataset.orderId));
+                clearOrderForm();
+                qs('#s5OrderId').value = String(order.id);
+                qs('#s5OrderModalTitle').textContent = 'Edit Medication';
+                qs('#s5MedicationType').value = order.medicationType || 'Regular';
+                setMedicationName(order.medicationName || '');
+                const strengthParts = splitStrengthAndMeasure(order.strength || '');
+                qs('#s5StrengthValue').value = strengthParts.value;
+                setSelectOrCustom('s5Measure', 's5MeasureCustom', strengthParts.measure);
+                setSelectOrCustom('s5Route', 's5RouteCustom', order.route || '');
+                setSelectOrCustom('s5Frequency', 's5FrequencyCustom', order.frequency || '');
+                setMaximumDose(order.maximumDose || '');
+                qs('#s5Indication').value = order.indication || '';
+                qs('#s5PrescriberName').value = order.prescriberName || '';
+                qs('#s5PrescriberSignature').value = order.prescriberSignature || '';
+                qs('#s5StartDate').value = (order.startDate || '').slice(0, 10);
+                const selectedHours = new Set(order.scheduleHours || []);
+                qsa('.s5-schedule-hour').forEach(x => x.checked = selectedHours.has(Number(x.value)));
+                updateScheduleVisibility();
+                syncFrequencyWithMedicationType();
+                showModal('s5OrderModal');
+            } catch (error) {
+                alert(error.message);
+            }
+        }));
+
+        qs('#s5SaveOrder')?.addEventListener('click', async () => {
+            showError('s5OrderError', '');
+            const type = qs('#s5MedicationType').value;
+            const payload = {
+                id: Number(qs('#s5OrderId').value || 0),
+                labId: labId,
+                patientId: patientId,
+                medicationType: type,
+                medicationName: selectedMedicationName(),
+                strength: qs('#s5StrengthValue').value,
+                measure: selectedValue('s5Measure', 's5MeasureCustom'),
+                route: selectedValue('s5Route', 's5RouteCustom'),
+                frequency: selectedValue('s5Frequency', 's5FrequencyCustom'),
+                maximumDose: getMaximumDose(),
+                indication: qs('#s5Indication').value,
+                prescriberName: qs('#s5PrescriberName').value,
+                prescriberSignature: qs('#s5PrescriberSignature').value,
+                startDate: qs('#s5StartDate').value,
+                endDate: null,
+                scheduleHours: type === 'Regular' ? qsa('.s5-schedule-hour:checked').map(x => Number(x.value)) : []
+            };
+
+            if (!payload.medicationName) {
+                showError('s5OrderError', 'Select a medication name or choose Other and enter one.');
+                return;
+            }
+            if (!payload.strength || !payload.measure) {
+                showError('s5OrderError', 'Enter the dose / strength value and choose a measure / unit.');
+                return;
+            }
+            if (!payload.route) {
+                showError('s5OrderError', 'Choose a route or select Other and enter one.');
+                return;
+            }
+            if (!payload.frequency) {
+                showError('s5OrderError', 'Choose a frequency or select Other and enter one.');
+                return;
+            }
+            if (!payload.maximumDose) {
+                showError('s5OrderError', 'Enter the maximum dose, or choose N/A when it is not applicable.');
+                return;
+            }
+
+            try {
+                await api('/MedicationChart/SaveOrder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                closeModal('s5OrderModal');
+                await reload(selectedDate);
+            } catch (error) {
+                showError('s5OrderError', error.message);
+            }
+        });
+
+        qsa('.s5-discontinue-order').forEach(btn => btn.addEventListener('click', async () => {
+            if (!confirm('Discontinue this medication? It will remain visible in history but can no longer be administered.')) return;
+            try {
+                await api('/MedicationChart/Discontinue?id=' + encodeURIComponent(btn.dataset.orderId), { method: 'POST' });
+                await reload(selectedDate);
+            } catch (error) {
+                alert(error.message);
+            }
+        }));
+        </text>
+    }
+
+    @if (isStudent || isSupervisor)
+    {
+        <text>
+        function updateAdministrationOutcomeUI() {
+            const outcome = qs('input[name="s5Outcome"]:checked')?.value || 'Given';
+            const dose = qs('#s5AdminDose');
+            const useDose = qs('#s5UsePrescribedDose');
+            const notes = qs('#s5AdminNotes');
+            const label = qs('#s5AdminNotesLabel');
+            const help = qs('#s5AdminNotesHelp');
+            const notGiven = outcome === 'Held' || outcome === 'Missed';
+            if (dose) {
+                dose.disabled = notGiven;
+                if (notGiven) dose.value = '';
+            }
+            if (useDose) useDose.disabled = notGiven;
+            if (notes && label) {
+                if (outcome === 'Missed') {
+                    label.textContent = 'Why was this medication missed? *';
+                    notes.placeholder = 'Required: explain why the scheduled medication was missed.';
+                } else if (outcome === 'Held') {
+                    label.textContent = 'Why was this medication held? *';
+                    notes.placeholder = 'Required: explain why the medication was held.';
+                } else if (currentOrder && currentOrder.medicationType === 'PRN') {
+                    label.textContent = 'Clinical reason for PRN administration *';
+                    notes.placeholder = 'Required: explain why the PRN medication is being given.';
+                } else {
+                    label.textContent = 'Clinical notes';
+                    notes.placeholder = 'Optional clinical note for this Given medication.';
+                }
+            }
+            if (help) help.textContent = notGiven
+                ? 'A reason is mandatory for Held or Missed.'
+                : (currentOrder && currentOrder.medicationType === 'PRN' ? 'A clinical reason is mandatory for PRN administration.' : 'Notes are optional for a routine Given medication.');
+        }
+
+        qsa('input[name="s5Outcome"]').forEach(input => input.addEventListener('change', updateAdministrationOutcomeUI));
+
+        async function openAdministration(orderId, preferredHour) {
+            try {
+                const order = await getOrder(orderId);
+                fillMedicationSummary(order, false);
+                showError('s5AdminError', '');
+                qs('#s5AdminDate').value = selectedDate;
+                qs('#s5AdminDose').value = '';
+                qs('#s5AdminNotes').value = '';
+                qs('#s5StudentSignature').value = '';
+                qs('#s5CoSignature').value = '';
+                qs('#s5OutcomeGiven').checked = true;
+                updateAdministrationOutcomeUI();
+
+                const hourSelect = qs('#s5AdminHour');
+                hourSelect.innerHTML = '';
+                let hours = order.medicationType === 'Regular' ? (order.scheduleHours || []) : Array.from({ length: 24 }, (_, i) => i);
+                if (!hours.length) hours = [new Date().getHours()];
+                hours.forEach(hour => {
+                    const option = document.createElement('option');
+                    option.value = String(hour);
+                    option.textContent = String(hour).padStart(2, '0') + '00';
+                    hourSelect.appendChild(option);
+                });
+                if (preferredHour !== undefined && preferredHour !== null && hours.includes(Number(preferredHour))) {
+                    hourSelect.value = String(preferredHour);
+                } else if (order.medicationType !== 'Regular') {
+                    hourSelect.value = String(new Date().getHours());
+                }
+
+                qs('#s5UsePrescribedDose').onclick = () => { qs('#s5AdminDose').value = order.strength || ''; };
+                await renderHistory(order.id);
+                showModal('s5AdministrationModal');
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        qsa('.s5-mar-entry-row[data-actionable="1"]').forEach(row => row.addEventListener('dblclick', () => openAdministration(Number(row.dataset.orderId), Number(row.dataset.hour))));
+        qsa('.s5-mar-admin').forEach(btn => btn.addEventListener('click', e => {
+            e.stopPropagation();
+            openAdministration(Number(btn.dataset.orderId), Number(btn.dataset.hour));
+        }));
+        qsa('.s5-administer-order').forEach(btn => btn.addEventListener('click', () => openAdministration(Number(btn.dataset.orderId), null)));
+
+        qs('#s5ConfirmAdministration')?.addEventListener('click', async () => {
+            if (!currentOrder) return;
+            showError('s5AdminError', '');
+            const outcome = qs('input[name="s5Outcome"]:checked')?.value || 'Given';
+            const payload = {
+                medicationOrderId: Number(currentOrder.id),
+                labId: labId,
+                patientId: patientId,
+                administrationDate: qs('#s5AdminDate').value,
+                administrationHour: Number(qs('#s5AdminHour').value),
+                status: outcome,
+                dose: qs('#s5AdminDose').value,
+                givenBy: qs('#s5StudentSignature').value,
+                coSign: qs('#s5CoSignature').value,
+                notes: qs('#s5AdminNotes').value
+            };
+            try {
+                await api('/MedicationChart/RecordAdministration', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                closeModal('s5AdministrationModal');
+                await reload(selectedDate);
+            } catch (error) {
+                showError('s5AdminError', error.message);
+            }
+        });
+        </text>
+    }
+})();
+</script>

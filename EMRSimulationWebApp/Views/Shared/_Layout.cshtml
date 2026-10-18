@@ -21,6 +21,7 @@
     <link rel="stylesheet" href="~/css/braden.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/foodintake.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/riskman-add.css" />
+    <link rel="stylesheet" href="~/css/medication-chart.css" asp-append-version="true" />
 </head>
 
 <body>
@@ -126,15 +127,9 @@
                                    data-url='@Url.Action("GetPatientFallRiskList", "Patient")'>FRAT List</a>
                             </li>
 
-                            <!-- Medication Chart with nested items -->
+                            <!-- Sprint 5 - unified Medication Administration Record -->
                             <li>
-                                <button id="toggleMedicationChart" class="menu-btn">
-                                    Medication Chart <span class="arrow">▼</span>
-                                </button>
-                                <ul id="medicationChartMenu" class="submenu">
-                                    <li><a href="javascript:void(0);" class="load-patient-prn" data-url="@Url.Action("GetPatientMedicationPrnList", "Patient")">PRN</a></li>
-                                    <li><a href="javascript:void(0);" class="load-patient-regular" data-url="@Url.Action("GetPatientMedicationRegularList", "Patient")">REGULAR</a></li>
-                                </ul>
+                                <a href="javascript:void(0);" class="load-medication-chart" data-url="@Url.Action("Index", "MedicationChart")">Medication Chart</a>
                             </li>
 
                             <!-- Braden Scale with nested items -->
@@ -197,8 +192,6 @@
                                 <li><a href="javascript:void(0);" class="load-patient-fluidbalance" data-url="@Url.Action("GetPatientFluidBalanceChartList", "Patient")">View Fluid Balance Charts</a></li>
                                 <li><a href="javascript:void(0);" class="load-fluid-record" data-url="@Url.Action("GetPatientFluidBalanceChartAdd", "Patient")">Add Fluid Balance Chart</a></li>
                                 <li><a href="javascript:void(0);" class="load-member-order" data-url="@Url.Action("GetMemberOrder", "Supervisor")">Add IV Fluid Order</a></li>
-                                <li><a href="javascript:void(0);" class="load-medication-prn" data-url="@Url.Action("GetMedicationPrn", "Supervisor")">Add Medication - PRN</a></li>
-                                <li><a href="javascript:void(0);" class="load-medication-regular" data-url="@Url.Action("GetMedicationRegular", "Supervisor")">Add Medication - REGULAR</a></li>
 
                             </ul>
                         </li>
@@ -266,10 +259,6 @@
 
         $("#toggleFlowSheet").on("click", function () {
             $("#flowSheetMenu").toggleClass("show");
-        });
-
-        $("#toggleMedicationChart").on("click", function () {
-            $("#medicationChartMenu").toggleClass("show");
         });
 
         $("#toggleNeurologicalChart").on("click", function () {
@@ -444,42 +433,30 @@
             });
         });
 
-        $('.load-patient-prn').on('click', function (e) {
+        // Sprint 5 - load the unified Medication Administration Record for the selected patient.
+        $('.load-medication-chart').on('click', function (e) {
             e.preventDefault();
             var pageUrl = $(this).data('url');
             var LabId = $('#txtLabId').val();
             var PatientId = $('#txtPatientId').val();
+
+            if (!PatientId) {
+                alert('Please select a patient first.');
+                return;
+            }
 
             $.ajax({
                 url: pageUrl,
                 method: "GET",
                 data: { labId: LabId, patientId: PatientId },
                 success: function (response) {
-                    $('#content-area').html("");
+                    $('#content-area').html('');
                     $('#content-area').html(response);
                 },
                 error: function (xhr, status, error) {
-                    console.error("Error loading the page:", error);
-                }
-            });
-        });
-
-        $('.load-patient-regular').on('click', function (e) {
-            e.preventDefault();
-            var pageUrl = $(this).data('url');
-            var LabId = $('#txtLabId').val();
-            var PatientId = $('#txtPatientId').val();
-
-            $.ajax({
-                url: pageUrl,
-                method: "GET",
-                data: { labId: LabId, patientId: PatientId },
-                success: function (response) {
-                    $('#content-area').html("");
-                    $('#content-area').html(response);
-                },
-                error: function (xhr, status, error) {
-                    console.error("Error loading the page:", error);
+                    var message = xhr.responseText || error || 'Unable to load Medication Chart.';
+                    alert(message);
+                    console.error('Error loading Medication Chart:', error);
                 }
             });
         });
