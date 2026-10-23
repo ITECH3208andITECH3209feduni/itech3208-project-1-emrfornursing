@@ -50,7 +50,7 @@ git clone the repository to desired directory
 
 Create the database - in SSMS right-click Databases > New Database, name it EmrSimulator, OK. The scripts below do not create it for you.
 
-Run Database\EMRSimulatorFULL-spr4.sql - open it in SSMS, select EmrSimulator in the database dropdown, Execute. This builds the schema.
+Run Database\EMRSimulatorFULL-spr5.sql - open it in SSMS, select EmrSimulator in the database dropdown, Execute. This builds the schema.
 
 Run Database\sqlusers_and_yearLevels.sql against the same database. 
 
