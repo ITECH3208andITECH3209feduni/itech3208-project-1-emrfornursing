@@ -376,3 +376,7 @@ EMRSimulationWebApp/keys/
 
 # Local database tooling, not part of the project source
 Database/*.ps1
+
+# macOS
+.DS_Store
+__MACOSX/
